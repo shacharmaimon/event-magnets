@@ -62,4 +62,26 @@ export const labels = {
     copyLink: "העתקת קישור",
     copied: "הועתק!",
   },
+  frames: {
+    title: "מסגרות",
+    help: "העלו מסגרות PNG שקופות. כל מסגרת מזוהה אוטומטית כלרוחב או לאורך לפי מידותיה.",
+    uploadButton: "העלאת מסגרת",
+    uploading: "מעלה...",
+    landscapeHeading: "מסגרות לרוחב",
+    portraitHeading: "מסגרות לאורך",
+    emptyLandscape: "אין עדיין מסגרות לרוחב",
+    emptyPortrait: "אין עדיין מסגרות לאורך",
+    delete: "מחיקה",
+    confirmDelete: "למחוק את המסגרת?",
+    // requirement banner
+    needBothTitle: "כדי לפתוח את האירוע צריך לפחות מסגרת אחת לרוחב ואחת לאורך",
+    cannotOpenYet: "יש להעלות מסגרת לרוחב ומסגרת לאורך לפני פתיחת האירוע",
+    // error messages (mapped from server error codes)
+    errInvalidType: "יש להעלות קובץ PNG בלבד",
+    errTooLarge: "הקובץ גדול מדי (עד 4 מגה-בייט)",
+    errAmbiguous: "המסגרת ריבועית — יש להשתמש במסגרת לרוחב או לאורך",
+    errNeedsBoth: "לא ניתן לפתוח: חסרה מסגרת לרוחב או לאורך",
+    errWouldBreak: "לא ניתן למחוק: סגרו קודם את האירוע",
+    errGeneric: "ההעלאה נכשלה",
+  },
 } as const;

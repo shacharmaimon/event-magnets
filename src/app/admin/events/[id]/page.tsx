@@ -7,6 +7,7 @@ import RequireAuth from "@/components/admin/RequireAuth";
 import AdminHeader from "@/components/admin/AdminHeader";
 import EventForm from "@/components/admin/EventForm";
 import GuestLinkCard from "@/components/admin/GuestLinkCard";
+import FrameManager from "@/components/admin/FrameManager";
 import { apiFetch } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import type { EventRecord } from "@/lib/types";
@@ -19,6 +20,10 @@ export default function ManageEventPage() {
   const [event, setEvent] = useState<EventRecord | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [frameCounts, setFrameCounts] = useState({ portrait: 0, landscape: 0 });
+
+  // Can only open once there's at least one frame of each orientation.
+  const canOpen = frameCounts.portrait >= 1 && frameCounts.landscape >= 1;
 
   useEffect(() => {
     apiFetch<EventRecord>(`/api/events/${id}`)
@@ -28,6 +33,7 @@ export default function ManageEventPage() {
 
   async function toggleOpen() {
     if (!event) return;
+    setError("");
     setBusy(true);
     try {
       const updated = await apiFetch<EventRecord>(`/api/events/${id}`, {
@@ -35,8 +41,13 @@ export default function ManageEventPage() {
         body: JSON.stringify({ is_open: !event.is_open }),
       });
       setEvent(updated);
-    } catch {
-      setError(labels.adminEvents.saveError);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "";
+      setError(
+        code === "needs_both_orientations"
+          ? labels.frames.errNeedsBoth
+          : labels.adminEvents.saveError,
+      );
     }
     setBusy(false);
   }
@@ -80,36 +91,47 @@ export default function ManageEventPage() {
                 </h2>
 
                 {/* Open / closed status + toggle */}
-                <section className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-zinc-500">
-                      {labels.adminEvents.statusLabel}:
-                    </span>
-                    <span
-                      className={
-                        event.is_open
-                          ? "rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                          : "rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-                      }
+                <section className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-zinc-500">
+                        {labels.adminEvents.statusLabel}:
+                      </span>
+                      <span
+                        className={
+                          event.is_open
+                            ? "rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                            : "rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                        }
+                      >
+                        {event.is_open
+                          ? labels.adminEvents.open
+                          : labels.adminEvents.closed}
+                      </span>
+                    </div>
+                    <button
+                      onClick={toggleOpen}
+                      disabled={busy || (!event.is_open && !canOpen)}
+                      className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
                     >
                       {event.is_open
-                        ? labels.adminEvents.open
-                        : labels.adminEvents.closed}
-                    </span>
+                        ? labels.adminEvents.toggleToClosed
+                        : labels.adminEvents.toggleToOpen}
+                    </button>
                   </div>
-                  <button
-                    onClick={toggleOpen}
-                    disabled={busy}
-                    className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
-                  >
-                    {event.is_open
-                      ? labels.adminEvents.toggleToClosed
-                      : labels.adminEvents.toggleToOpen}
-                  </button>
+                  {/* Explain why the event can't be opened yet. */}
+                  {!event.is_open && !canOpen && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      {labels.frames.cannotOpenYet}
+                    </p>
+                  )}
                 </section>
 
                 {/* Guest link + QR */}
                 <GuestLinkCard slug={event.public_slug} />
+
+                {/* Frames */}
+                <FrameManager eventId={id} onCountsChange={setFrameCounts} />
 
                 {/* Edit form */}
                 <section className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">

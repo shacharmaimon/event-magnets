@@ -12,10 +12,15 @@ export async function apiFetch<T>(
   const { data } = await supabaseBrowser.auth.getSession();
   const token = data.session?.access_token;
 
+  // For file uploads we send FormData — the browser must set its own
+  // multipart Content-Type (with boundary), so we skip the JSON header then.
+  const isFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
+
   const res = await fetch(path, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },

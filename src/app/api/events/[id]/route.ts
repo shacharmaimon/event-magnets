@@ -73,6 +73,24 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   const admin = createAdminClient();
+
+  // Guard: an event can only be OPENED if it has at least one portrait AND one
+  // landscape frame (so guests never hit a missing-frame dead end).
+  if (updates.is_open === true) {
+    const { data: frames } = await admin
+      .from("frames")
+      .select("orientation")
+      .eq("event_id", id);
+    const hasPortrait = frames?.some((f) => f.orientation === "portrait");
+    const hasLandscape = frames?.some((f) => f.orientation === "landscape");
+    if (!hasPortrait || !hasLandscape) {
+      return NextResponse.json(
+        { error: "needs_both_orientations" },
+        { status: 409 },
+      );
+    }
+  }
+
   const { data, error } = await admin
     .from("events")
     .update(updates)
