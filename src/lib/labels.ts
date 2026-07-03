@@ -14,4 +14,17 @@ export const labels = {
     subheading:
       "הפלטפורמה שבה אורחי החתונה או המסיבה מצלמים בעצמם, בוחרים מסגרת מעוצבת — ואתם מקבלים מגנט מוכן להדפסה.",
   },
+  admin: {
+    loginTitle: "כניסת מנהל",
+    loginSubtitle: "התחברו כדי לנהל את האירועים שלכם",
+    emailLabel: "אימייל",
+    passwordLabel: "סיסמה",
+    loginButton: "התחברות",
+    loggingIn: "מתחבר...",
+    loginError: "האימייל או הסיסמה שגויים",
+    dashboardTitle: "לוח הבקרה",
+    welcomeBack: "שלום",
+    logout: "התנתקות",
+    loading: "טוען...",
+  },
 } as const;
