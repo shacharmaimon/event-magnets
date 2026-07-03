@@ -1,0 +1,7 @@
+# pnpm configuration.
+# allowBuilds: packages permitted to run their install/build scripts.
+# sharp (image compositing, used in Phase 6) and unrs-resolver compile native
+# binaries and must be allowed to build.
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
