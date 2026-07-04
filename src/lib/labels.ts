@@ -118,8 +118,7 @@ export const labels = {
     doneBody: "המגנט שלכם בדרך להדפסה. תודה!",
     copiesLabel: "מספר עותקים",
     addAnother: "הוספת מגנט נוסף",
-    shareButton: "שיתוף / סטורי",
-    downloadToDevice: "שמירה למכשיר",
+    shareButton: "שיתוף",
     remainingTemplate: "נותרו {n} מגנטים בלבד",
   },
   adminSubmissions: {

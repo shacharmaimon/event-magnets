@@ -74,24 +74,18 @@ export default function DoneScreen({
       <p className="text-zinc-500 dark:text-zinc-400">{labels.guest.doneBody}</p>
 
       <div className="flex w-full max-w-xs flex-col gap-3">
-        {canShare && (
-          <button
-            onClick={share}
-            disabled={busy}
-            className="rounded-xl bg-amber-500 px-6 py-3 font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
-          >
-            {labels.guest.shareButton}
-          </button>
-        )}
+        {/* Share opens the native sheet (which includes "Save Image"). If the
+            device has no share support, it falls back to a direct download. */}
         <button
-          onClick={download}
-          className="rounded-xl border border-zinc-300 px-6 py-3 font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          onClick={canShare ? share : download}
+          disabled={busy}
+          className="rounded-xl bg-amber-500 px-6 py-3 font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
         >
-          {labels.guest.downloadToDevice}
+          {labels.guest.shareButton}
         </button>
         <button
           onClick={onAddAnother}
-          className="text-sm font-medium text-zinc-500 hover:text-amber-600"
+          className="rounded-xl border border-zinc-300 px-6 py-3 font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
           {labels.guest.addAnother}
         </button>
