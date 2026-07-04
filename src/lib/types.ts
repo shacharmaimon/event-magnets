@@ -57,3 +57,20 @@ export interface PublicEventData {
   public_slug: string;
   frames: PublicGroupedFrames;
 }
+
+/** One row of the `submissions` table. */
+export interface SubmissionRecord {
+  id: string;
+  event_id: string;
+  frame_id: string | null;
+  device_id: string;
+  raw_storage_path: string | null;
+  finished_storage_path: string | null;
+  orientation: Orientation | null;
+  created_at: string;
+}
+
+/** A submission plus a signed URL to its finished (framed) image. */
+export interface SubmissionWithUrl extends SubmissionRecord {
+  url: string;
+}

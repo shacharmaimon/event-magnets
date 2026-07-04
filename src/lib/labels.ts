@@ -106,4 +106,17 @@ export const labels = {
     doneTitle: "המגנט נשלח! 🎉",
     doneBody: "המגנט שלכם בדרך להדפסה. תודה!",
   },
+  adminSubmissions: {
+    title: "גלריית תמונות",
+    viewGallery: "צפייה בתמונות שהתקבלו",
+    empty: "עדיין לא התקבלו תמונות",
+    photosCount: "תמונות שהתקבלו",
+    downloadOne: "הורדה",
+    downloadAll: "הורדת הכל (ZIP)",
+    preparingZip: "מכין קובץ...",
+    loadError: "טעינת התמונות נכשלה",
+    zipError: "הורדת הקובץ נכשלה",
+    tooMany: "יותר מדי תמונות להורדה אחת",
+    back: "חזרה לאירוע",
+  },
 } as const;

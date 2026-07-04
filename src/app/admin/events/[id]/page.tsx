@@ -130,6 +130,14 @@ export default function ManageEventPage() {
                 {/* Guest link + QR */}
                 <GuestLinkCard slug={event.public_slug} />
 
+                {/* Link to the submissions gallery */}
+                <Link
+                  href={`/admin/events/${id}/submissions`}
+                  className="rounded-xl border border-zinc-200 bg-white p-5 text-center font-semibold text-amber-600 transition-colors hover:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  {labels.adminSubmissions.viewGallery} →
+                </Link>
+
                 {/* Frames */}
                 <FrameManager eventId={id} onCountsChange={setFrameCounts} />
 

@@ -32,3 +32,27 @@ export async function apiFetch<T>(
   }
   return res.json();
 }
+
+// Like apiFetch but returns a Blob (for authed file/zip downloads). Attaches the
+// same Bearer token so the download stays behind admin auth.
+export async function apiFetchBlob(
+  path: string,
+  options: RequestInit = {},
+): Promise<Blob> {
+  const { data } = await supabaseBrowser.auth.getSession();
+  const token = data.session?.access_token;
+
+  const res = await fetch(path, {
+    ...options,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? res.statusText);
+  }
+  return res.blob();
+}
