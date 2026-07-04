@@ -25,7 +25,12 @@ export async function POST(
   const { slug } = await params;
 
   // --- 1. Parse + validate the multipart form ---
-  const form = await request.formData();
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return NextResponse.json({ error: "no_file" }, { status: 400 });
+  }
   const file = form.get("file");
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "no_file" }, { status: 400 });
