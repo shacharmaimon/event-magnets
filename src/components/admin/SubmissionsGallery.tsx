@@ -53,18 +53,24 @@ export default function SubmissionsGallery({
     return () => clearInterval(timer);
   }, [load]);
 
-  async function downloadZip(onlyNew: boolean) {
+  // Download a ZIP from one of the download endpoints.
+  //   kind "zip"    -> individual finished images
+  //   kind "sheets" -> 2-up 4x6 print sheets
+  async function downloadZip(kind: "zip" | "sheets", onlyNew: boolean) {
     setZipping(true);
     setError("");
     try {
-      const blob = await apiFetchBlob(
-        `/api/events/${eventId}/submissions/zip${onlyNew ? "?new=1" : ""}`,
-      );
+      const path =
+        kind === "sheets"
+          ? `/api/events/${eventId}/submissions/print-sheets`
+          : `/api/events/${eventId}/submissions/zip`;
+      const blob = await apiFetchBlob(`${path}${onlyNew ? "?new=1" : ""}`);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       const safeName = (eventName || "event").replace(/[^\p{L}\p{N}_-]+/gu, "_");
-      a.download = `${safeName}-magnets${onlyNew ? "-new" : ""}.zip`;
+      const suffix = kind === "sheets" ? "print-sheets" : "magnets";
+      a.download = `${safeName}-${suffix}${onlyNew ? "-new" : ""}.zip`;
       a.click();
       URL.revokeObjectURL(url);
       if (onlyNew) await load(); // refresh so the "new" count updates
@@ -76,15 +82,15 @@ export default function SubmissionsGallery({
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold text-zinc-900 dark:text-white">
           {labels.adminSubmissions.photosCount}: {count}
         </h2>
         {count > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            {/* Primary: download only new (not-yet-downloaded) photos */}
+            {/* Primary: download only NEW individual magnets (for big 4x6 prints) */}
             <button
-              onClick={() => downloadZip(true)}
+              onClick={() => downloadZip("zip", true)}
               disabled={zipping || newCount === 0}
               className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
             >
@@ -92,13 +98,29 @@ export default function SubmissionsGallery({
                 ? labels.adminSubmissions.preparingZip
                 : `${labels.adminSubmissions.downloadNew} (${newCount})`}
             </button>
-            {/* Secondary: re-download everything */}
+            {/* NEW as 2-up print sheets (for 2-magnets-per-page printing) */}
             <button
-              onClick={() => downloadZip(false)}
+              onClick={() => downloadZip("sheets", true)}
+              disabled={zipping || newCount === 0}
+              className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-600 disabled:opacity-50"
+            >
+              {`${labels.adminSubmissions.printSheetsNew} (${newCount})`}
+            </button>
+            {/* Re-download everything (individual) */}
+            <button
+              onClick={() => downloadZip("zip", false)}
               disabled={zipping}
               className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               {labels.adminSubmissions.downloadAllAgain}
+            </button>
+            {/* Re-download all as print sheets */}
+            <button
+              onClick={() => downloadZip("sheets", false)}
+              disabled={zipping}
+              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              {labels.adminSubmissions.printSheetsAll}
             </button>
           </div>
         )}

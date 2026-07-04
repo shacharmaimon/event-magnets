@@ -118,6 +118,8 @@ export const labels = {
     doneBody: "המגנט שלכם בדרך להדפסה. תודה!",
     copiesLabel: "מספר עותקים",
     addAnother: "הוספת מגנט נוסף",
+    shareButton: "שיתוף / סטורי",
+    downloadToDevice: "שמירה למכשיר",
     remainingTemplate: "נותרו {n} מגנטים בלבד",
   },
   adminSubmissions: {
@@ -129,6 +131,8 @@ export const labels = {
     downloadAll: "הורדת הכל (ZIP)",
     downloadNew: "הורדת חדשות",
     downloadAllAgain: "הורדת הכל מחדש",
+    printSheetsNew: "דפי הדפסה — חדשות",
+    printSheetsAll: "דפי הדפסה — הכל",
     nothingNew: "אין תמונות חדשות להורדה",
     preparingZip: "מכין קובץ...",
     loadError: "טעינת התמונות נכשלה",

@@ -5,6 +5,7 @@ import WelcomeScreen from "@/components/guest/WelcomeScreen";
 import CaptureStep from "@/components/guest/CaptureStep";
 import FramePicker from "@/components/guest/FramePicker";
 import ConfirmStep from "@/components/guest/ConfirmStep";
+import DoneScreen from "@/components/guest/DoneScreen";
 import { detectOrientation } from "@/lib/orientation";
 import { getDeviceId } from "@/lib/device-id";
 import { labels } from "@/lib/labels";
@@ -128,30 +129,7 @@ export default function GuestFlow({ event }: { event: PublicEventData }) {
   }
 
   if (step === "done") {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-5 px-6 text-center">
-        <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">
-          {labels.guest.doneTitle}
-        </h2>
-        {finishedUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={finishedUrl}
-            alt=""
-            className="mx-auto w-full max-w-sm rounded-xl shadow-lg"
-          />
-        )}
-        <p className="text-zinc-500 dark:text-zinc-400">
-          {labels.guest.doneBody}
-        </p>
-        <button
-          onClick={addAnother}
-          className="mt-2 rounded-xl bg-amber-500 px-6 py-3 font-semibold text-white transition-colors hover:bg-amber-600"
-        >
-          {labels.guest.addAnother}
-        </button>
-      </main>
-    );
+    return <DoneScreen finishedUrl={finishedUrl} onAddAnother={addAnother} />;
   }
 
   // Fallback (e.g. state mismatch) — return to welcome.
