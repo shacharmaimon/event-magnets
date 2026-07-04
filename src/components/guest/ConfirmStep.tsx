@@ -25,7 +25,7 @@ export default function ConfirmStep({
   orientation: Orientation;
   deviceId: string;
   onRetake: () => void;
-  onDone: () => void;
+  onDone: (finishedUrl: string | null) => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
@@ -43,10 +43,9 @@ export default function ConfirmStep({
     setSubmitting(false);
 
     if (result.ok) {
-      onDone();
-    } else if (result.error === "not_implemented") {
-      // Expected until Phase 6.
-      setMessage(labels.guest.comingSoon);
+      onDone(result.url ?? null);
+    } else if (result.error === "limit_reached") {
+      setMessage(labels.guest.limitReached);
     } else {
       setMessage(labels.guest.submitError);
     }

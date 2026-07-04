@@ -7,6 +7,7 @@ import FramePicker from "@/components/guest/FramePicker";
 import ConfirmStep from "@/components/guest/ConfirmStep";
 import { detectOrientation } from "@/lib/orientation";
 import { getDeviceId } from "@/lib/device-id";
+import { labels } from "@/lib/labels";
 import type { Orientation, PublicEventData, PublicFrame } from "@/lib/types";
 
 type Step = "welcome" | "capture" | "framing" | "confirm" | "done";
@@ -19,6 +20,7 @@ export default function GuestFlow({ event }: { event: PublicEventData }) {
   const [orientation, setOrientation] = useState<Orientation | null>(null);
   const [chosenFrame, setChosenFrame] = useState<PublicFrame | null>(null);
   const [deviceId, setDeviceId] = useState("");
+  const [finishedUrl, setFinishedUrl] = useState<string | null>(null);
 
   // Track the object URL so we can revoke it (avoid memory leaks on retake).
   const objectUrl = useRef<string | null>(null);
@@ -93,16 +95,30 @@ export default function GuestFlow({ event }: { event: PublicEventData }) {
         orientation={orientation}
         deviceId={deviceId}
         onRetake={retake}
-        onDone={() => setStep("done")}
+        onDone={(url) => {
+          setFinishedUrl(url);
+          setStep("done");
+        }}
       />
     );
   }
 
   if (step === "done") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-6 text-center">
-        <p className="text-xl font-semibold text-zinc-900 dark:text-white">
-          🎉
+      <main className="flex min-h-screen flex-col items-center justify-center gap-5 px-6 text-center">
+        <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">
+          {labels.guest.doneTitle}
+        </h2>
+        {finishedUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={finishedUrl}
+            alt=""
+            className="mx-auto w-full max-w-sm rounded-xl shadow-lg"
+          />
+        )}
+        <p className="text-zinc-500 dark:text-zinc-400">
+          {labels.guest.doneBody}
         </p>
       </main>
     );

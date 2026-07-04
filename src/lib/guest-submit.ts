@@ -11,7 +11,7 @@ export async function submitMagnet(args: {
   frameId: string;
   orientation: Orientation;
   deviceId: string;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; url?: string | null }> {
   const fd = new FormData();
   fd.append("file", args.photoFile);
   fd.append("frameId", args.frameId);
@@ -27,5 +27,6 @@ export async function submitMagnet(args: {
     const body = await res.json().catch(() => ({}));
     return { ok: false, error: body.error ?? String(res.status) };
   }
-  return { ok: true };
+  const body = await res.json().catch(() => ({}));
+  return { ok: true, url: body.url ?? null };
 }

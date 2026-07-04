@@ -102,5 +102,8 @@ export const labels = {
     submitting: "שולח...",
     comingSoon: "כמעט מוכן! שליחת המגנט תתאפשר בקרוב 🎉",
     submitError: "השליחה נכשלה, נסו שוב",
+    limitReached: "הגעתם למספר המרבי של תמונות לאירוע זה",
+    doneTitle: "המגנט נשלח! 🎉",
+    doneBody: "המגנט שלכם בדרך להדפסה. תודה!",
   },
 } as const;
