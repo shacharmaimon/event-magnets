@@ -30,10 +30,12 @@ export default function EventForm({ mode, event, onSaved }: Props) {
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setSaved(false);
     setSaving(true);
 
     const payload = {
@@ -50,15 +52,19 @@ export default function EventForm({ mode, event, onSaved }: Props) {
           body: JSON.stringify(payload),
         });
         router.push(`/admin/events/${created.id}`);
+        return; // navigating away — leave the button disabled
       } else if (event) {
         const updated = await apiFetch<EventRecord>(
           `/api/events/${event.id}`,
           { method: "PATCH", body: JSON.stringify(payload) },
         );
         onSaved?.(updated);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000); // auto-clear the confirmation
       }
     } catch {
       setError(labels.adminEvents.saveError);
+    } finally {
       setSaving(false);
     }
   }
@@ -122,13 +128,20 @@ export default function EventForm({ mode, event, onSaved }: Props) {
         <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       )}
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="mt-2 self-start rounded-lg bg-amber-500 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
-      >
-        {saving ? busyLabel : actionLabel}
-      </button>
+      <div className="mt-2 flex items-center gap-4">
+        <button
+          type="submit"
+          disabled={saving}
+          className="self-start rounded-lg bg-amber-500 px-5 py-2.5 font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
+        >
+          {saving ? busyLabel : actionLabel}
+        </button>
+        {saved && (
+          <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+            {labels.adminEvents.saved}
+          </span>
+        )}
+      </div>
     </form>
   );
 }

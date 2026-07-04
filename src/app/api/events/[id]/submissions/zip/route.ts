@@ -15,7 +15,8 @@ export async function GET(request: Request, { params }: Params) {
   }
 
   const { id } = await params;
-  const res = await zipFinishedSubmissions(id);
+  const onlyNew = new URL(request.url).searchParams.get("new") === "1";
+  const res = await zipFinishedSubmissions(id, onlyNew);
   if (!res.ok) {
     return NextResponse.json({ error: res.reason }, { status: 413 });
   }

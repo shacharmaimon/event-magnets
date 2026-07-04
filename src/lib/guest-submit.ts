@@ -12,6 +12,7 @@ export async function submitMagnet(args: {
   orientation: Orientation;
   deviceId: string;
   copies?: number;
+  mirrored?: boolean;
 }): Promise<{ ok: boolean; error?: string; url?: string | null; copies?: number }> {
   const fd = new FormData();
   fd.append("file", args.photoFile);
@@ -19,6 +20,7 @@ export async function submitMagnet(args: {
   fd.append("orientation", args.orientation);
   fd.append("deviceId", args.deviceId);
   fd.append("copies", String(args.copies ?? 1));
+  fd.append("mirrored", args.mirrored ? "1" : "0");
 
   const res = await fetch(`/api/e/${args.slug}/submit`, {
     method: "POST",

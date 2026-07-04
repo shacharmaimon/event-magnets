@@ -48,6 +48,7 @@ export const labels = {
     save: "שמירה",
     saving: "שומר...",
     saveError: "השמירה נכשלה",
+    saved: "נשמר בהצלחה! ✓",
     back: "חזרה",
     // manage page
     toggleToOpen: "פתיחת האירוע",
@@ -87,7 +88,16 @@ export const labels = {
   guest: {
     unavailableTitle: "האירוע אינו זמין",
     unavailableBody: "ייתכן שהאירוע נסגר או שהקישור שגוי. פנו למארגן האירוע.",
-    startButton: "לצילום מגנט",
+    startButton: "יאללה, מתחילים!",
+    howItWorksTitle: "איך זה עובד?",
+    step1Title: "מצלמים",
+    step1Body:
+      "מצלמים סלפי או מעלים תמונה מהטלפון. לאורך, לרוחב, מה שבא לכם — אנחנו תומכים בהכל! 📸",
+    step2Title: "מעצבים",
+    step2Body: "בוחרים את המסגרת הכי שווה לתמונה שלכם 🎨",
+    step3Title: "מדפיסים",
+    step3Body:
+      "בוחרים כמה עותקים ושולחים להדפסה — ותוך כמה דקות המגנט מחכה לכם בעמדת המגנטים! 🧲",
     chooseSource: "איך תרצו להוסיף תמונה?",
     takePhoto: "צילום תמונה",
     uploadFromGallery: "בחירה מהגלריה",
@@ -99,6 +109,7 @@ export const labels = {
     confirmTitle: "מאשרים?",
     confirm: "שליחה",
     retake: "צילום מחדש",
+    flip: "היפוך תמונה 🔄",
     submitting: "שולח...",
     comingSoon: "כמעט מוכן! שליחת המגנט תתאפשר בקרוב 🎉",
     submitError: "השליחה נכשלה, נסו שוב",
@@ -116,6 +127,9 @@ export const labels = {
     photosCount: "תמונות שהתקבלו",
     downloadOne: "הורדה",
     downloadAll: "הורדת הכל (ZIP)",
+    downloadNew: "הורדת חדשות",
+    downloadAllAgain: "הורדת הכל מחדש",
+    nothingNew: "אין תמונות חדשות להורדה",
     preparingZip: "מכין קובץ...",
     loadError: "טעינת התמונות נכשלה",
     zipError: "הורדת הקובץ נכשלה",

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
-import { listFinishedSubmissions } from "@/lib/submissions";
+import {
+  listFinishedSubmissions,
+  countNewSubmissions,
+} from "@/lib/submissions";
 
 export const runtime = "nodejs";
 
@@ -15,5 +18,10 @@ export async function GET(request: Request, { params }: Params) {
 
   const { id } = await params;
   const submissions = await listFinishedSubmissions(id);
-  return NextResponse.json({ count: submissions.length, submissions });
+  const newCount = await countNewSubmissions(id);
+  return NextResponse.json({
+    count: submissions.length,
+    newCount,
+    submissions,
+  });
 }

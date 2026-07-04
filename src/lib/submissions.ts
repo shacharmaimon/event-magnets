@@ -40,29 +40,55 @@ export async function listFinishedSubmissions(
   }));
 }
 
-/** Bundle an event's finished images into a ZIP (byte array). */
+/** How many finished submissions haven't been downloaded yet. */
+export async function countNewSubmissions(eventId: string): Promise<number> {
+  const admin = createAdminClient();
+  const { count } = await admin
+    .from("submissions")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", eventId)
+    .not("finished_storage_path", "is", null)
+    .is("downloaded_at", null);
+  return count ?? 0;
+}
+
+/**
+ * Bundle an event's finished images into a ZIP.
+ * - onlyNew=false: every finished image (a fresh full download).
+ * - onlyNew=true: only images not yet downloaded, and mark them downloaded.
+ */
 export async function zipFinishedSubmissions(
   eventId: string,
-): Promise<{ ok: true; bytes: Uint8Array } | { ok: false; reason: "too_many" }> {
+  onlyNew = false,
+): Promise<
+  { ok: true; bytes: Uint8Array; empty: boolean } | { ok: false; reason: "too_many" }
+> {
   const admin = createAdminClient();
 
-  const { data: rows } = await admin
+  let query = admin
     .from("submissions")
-    .select("finished_storage_path")
+    .select("id, finished_storage_path")
     .eq("event_id", eventId)
     .not("finished_storage_path", "is", null)
     .order("created_at", { ascending: false });
+  if (onlyNew) query = query.is("downloaded_at", null);
 
-  const paths = (rows ?? []).map((r) => r.finished_storage_path as string);
-  if (paths.length > MAX_ZIP_ITEMS) {
+  const { data: rows } = await query;
+  const items = rows ?? [];
+
+  if (items.length > MAX_ZIP_ITEMS) {
     return { ok: false, reason: "too_many" };
+  }
+  if (items.length === 0) {
+    const zip = new JSZip();
+    return { ok: true, bytes: await zip.generateAsync({ type: "uint8array" }), empty: true };
   }
 
   const zip = new JSZip();
-  for (let i = 0; i < paths.length; i++) {
+  for (let i = 0; i < items.length; i++) {
     const { data: blob } = await admin.storage
       .from("submissions")
-      .download(paths[i]);
+      .download(items[i].finished_storage_path as string);
     if (blob) {
       const buf = Buffer.from(await blob.arrayBuffer());
       zip.file(`magnet-${String(i + 1).padStart(3, "0")}.jpg`, buf);
@@ -70,5 +96,15 @@ export async function zipFinishedSubmissions(
   }
 
   const bytes = await zip.generateAsync({ type: "uint8array" });
-  return { ok: true, bytes };
+
+  // Mark these rows as downloaded (only for the "new" download).
+  if (onlyNew) {
+    const ids = items.map((r) => r.id);
+    await admin
+      .from("submissions")
+      .update({ downloaded_at: new Date().toISOString() })
+      .in("id", ids);
+  }
+
+  return { ok: true, bytes, empty: false };
 }

@@ -31,6 +31,7 @@ export default function ConfirmStep({
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [copies, setCopies] = useState(1);
+  const [mirrored, setMirrored] = useState(false);
 
   async function handleConfirm() {
     setSubmitting(true);
@@ -42,6 +43,7 @@ export default function ConfirmStep({
       orientation,
       deviceId,
       copies,
+      mirrored,
     });
     setSubmitting(false);
 
@@ -66,7 +68,16 @@ export default function ConfirmStep({
         photoUrl={photoUrl}
         frameUrl={frame.url}
         orientation={orientation}
+        mirrored={mirrored}
       />
+
+      {/* Flip — fixes mirrored selfies from the front camera */}
+      <button
+        onClick={() => setMirrored((m) => !m)}
+        className="text-sm font-medium text-zinc-600 hover:text-amber-600 dark:text-zinc-400"
+      >
+        {labels.guest.flip}
+      </button>
 
       {showCopies && (
         <div className="flex items-center gap-4">

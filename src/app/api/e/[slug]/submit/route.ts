@@ -50,6 +50,8 @@ export async function POST(
   const copiesRaw = Number(form.get("copies") ?? 1);
   const requestedCopies =
     Number.isInteger(copiesRaw) && copiesRaw >= 1 ? copiesRaw : 1;
+  // Guest asked to mirror the photo (fixes front-camera/selfie mirroring).
+  const mirrored = form.get("mirrored") === "1";
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: "file_too_large" }, { status: 400 });
   }
@@ -134,10 +136,11 @@ export async function POST(
       .png()
       .toBuffer();
 
-    // Photo: apply EXIF rotation, center-crop cover to target (matches the
-    // preview's object-cover), overlay the frame, encode print-quality JPEG.
+    // Photo: apply EXIF rotation, optionally mirror (selfie fix), center-crop
+    // cover to target (matches the preview), overlay the frame, encode JPEG.
     const finished = await sharp(rawBytes, { failOn: "none" })
       .rotate()
+      .flop(mirrored) // horizontal mirror only when requested
       .resize(W, H, { fit: "cover", position: "center" })
       .composite([{ input: frameBuf, top: 0, left: 0 }])
       .jpeg({ quality: 90, chromaSubsampling: "4:4:4", mozjpeg: true })

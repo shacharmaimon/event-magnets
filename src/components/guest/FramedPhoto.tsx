@@ -13,10 +13,12 @@ export default function FramedPhoto({
   photoUrl,
   frameUrl,
   orientation,
+  mirrored = false,
 }: {
   photoUrl: string;
   frameUrl: string;
   orientation: Orientation;
+  mirrored?: boolean;
 }) {
   const aspect = orientation === "landscape" ? "aspect-[4/3]" : "aspect-[3/4]";
 
@@ -29,6 +31,7 @@ export default function FramedPhoto({
         src={photoUrl}
         alt=""
         className="absolute inset-0 h-full w-full object-cover"
+        style={mirrored ? { transform: "scaleX(-1)" } : undefined}
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
