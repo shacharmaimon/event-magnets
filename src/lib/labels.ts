@@ -119,4 +119,20 @@ export const labels = {
     tooMany: "יותר מדי תמונות להורדה אחת",
     back: "חזרה לאירוע",
   },
+  adminAlbum: {
+    title: "אלבום לשיתוף",
+    help: "שלחו את הקישור למארחי האירוע — הם יוכלו לצפות ולהוריד את כל התמונות",
+    copyLink: "העתקת קישור",
+    copied: "הועתק!",
+  },
+  album: {
+    heading: "אלבום האירוע",
+    empty: "עדיין אין תמונות באלבום",
+    downloadOne: "הורדה",
+    downloadAll: "הורדת כל התמונות (ZIP)",
+    preparingZip: "מכין קובץ...",
+    zipError: "הורדת הקובץ נכשלה",
+    unavailableTitle: "האלבום לא נמצא",
+    unavailableBody: "ייתכן שהקישור שגוי. בקשו מהצלם קישור מעודכן.",
+  },
 } as const;

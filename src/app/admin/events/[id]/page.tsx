@@ -7,6 +7,7 @@ import RequireAuth from "@/components/admin/RequireAuth";
 import AdminHeader from "@/components/admin/AdminHeader";
 import EventForm from "@/components/admin/EventForm";
 import GuestLinkCard from "@/components/admin/GuestLinkCard";
+import ShareAlbumCard from "@/components/admin/ShareAlbumCard";
 import FrameManager from "@/components/admin/FrameManager";
 import { apiFetch } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
@@ -129,6 +130,9 @@ export default function ManageEventPage() {
 
                 {/* Guest link + QR */}
                 <GuestLinkCard slug={event.public_slug} />
+
+                {/* Shareable album link for hosts */}
+                <ShareAlbumCard albumToken={event.album_token} />
 
                 {/* Link to the submissions gallery */}
                 <Link

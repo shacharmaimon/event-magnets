@@ -10,6 +10,7 @@ export interface EventRecord {
   is_open: boolean;
   photos_per_device: number;
   public_slug: string;
+  album_token: string;
   created_at: string;
 }
 
@@ -73,4 +74,18 @@ export interface SubmissionRecord {
 /** A submission plus a signed URL to its finished (framed) image. */
 export interface SubmissionWithUrl extends SubmissionRecord {
   url: string;
+}
+
+/** A single photo as exposed in a public host album (only safe fields). */
+export interface PublicAlbumPhoto {
+  id: string;
+  url: string;
+  orientation: Orientation | null;
+}
+
+/** The public, read-only album data for hosts (works even when event closed). */
+export interface PublicAlbumData {
+  name: string;
+  welcome_heading: string;
+  photos: PublicAlbumPhoto[];
 }
