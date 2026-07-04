@@ -35,3 +35,25 @@ export interface GroupedFrames {
   portrait: FrameWithUrl[];
   landscape: FrameWithUrl[];
 }
+
+/** A frame as exposed to guests — only the fields they need (no internal ids/paths). */
+export interface PublicFrame {
+  id: string;
+  orientation: Orientation;
+  url: string;
+}
+
+export interface PublicGroupedFrames {
+  portrait: PublicFrame[];
+  landscape: PublicFrame[];
+}
+
+/** The safe subset of event data exposed publicly to guests (open events only). */
+export interface PublicEventData {
+  name: string;
+  welcome_heading: string;
+  welcome_subheading: string;
+  photos_per_device: number;
+  public_slug: string;
+  frames: PublicGroupedFrames;
+}
