@@ -11,12 +11,14 @@ export async function submitMagnet(args: {
   frameId: string;
   orientation: Orientation;
   deviceId: string;
-}): Promise<{ ok: boolean; error?: string; url?: string | null }> {
+  copies?: number;
+}): Promise<{ ok: boolean; error?: string; url?: string | null; copies?: number }> {
   const fd = new FormData();
   fd.append("file", args.photoFile);
   fd.append("frameId", args.frameId);
   fd.append("orientation", args.orientation);
   fd.append("deviceId", args.deviceId);
+  fd.append("copies", String(args.copies ?? 1));
 
   const res = await fetch(`/api/e/${args.slug}/submit`, {
     method: "POST",
@@ -28,5 +30,5 @@ export async function submitMagnet(args: {
     return { ok: false, error: body.error ?? String(res.status) };
   }
   const body = await res.json().catch(() => ({}));
-  return { ok: true, url: body.url ?? null };
+  return { ok: true, url: body.url ?? null, copies: body.copies ?? 1 };
 }

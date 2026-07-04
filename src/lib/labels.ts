@@ -105,6 +105,9 @@ export const labels = {
     limitReached: "הגעתם למספר המרבי של תמונות לאירוע זה",
     doneTitle: "המגנט נשלח! 🎉",
     doneBody: "המגנט שלכם בדרך להדפסה. תודה!",
+    copiesLabel: "מספר עותקים",
+    addAnother: "הוספת מגנט נוסף",
+    remainingTemplate: "נותרו {n} מגנטים בלבד",
   },
   adminSubmissions: {
     title: "גלריית תמונות",

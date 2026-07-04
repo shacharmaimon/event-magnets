@@ -46,6 +46,10 @@ export async function POST(
   ) {
     return NextResponse.json({ error: "missing_fields" }, { status: 400 });
   }
+  // Number of copies requested (default 1). Clamped to remaining allowance below.
+  const copiesRaw = Number(form.get("copies") ?? 1);
+  const requestedCopies =
+    Number.isInteger(copiesRaw) && copiesRaw >= 1 ? copiesRaw : 1;
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: "file_too_large" }, { status: 400 });
   }
@@ -86,10 +90,13 @@ export async function POST(
     .eq("event_id", event.id)
     .eq("device_id", deviceId);
   // Race note: two simultaneous submits could both pass this check and overshoot
-  // by one — acceptable for v1.
-  if ((count ?? 0) >= event.photos_per_device) {
+  // slightly — acceptable for v1.
+  const remaining = event.photos_per_device - (count ?? 0);
+  if (remaining <= 0) {
     return NextResponse.json({ error: "limit_reached" }, { status: 429 });
   }
+  // Save at most the remaining allowance (clamp the requested copies).
+  const copies = Math.min(requestedCopies, remaining);
 
   const [W, H]: [number, number] =
     (orientation as Orientation) === "landscape" ? [1200, 900] : [900, 1200];
@@ -157,15 +164,20 @@ export async function POST(
     if (finErr) throw new Error("finished_upload");
     uploaded.push(finishedPath);
 
-    // --- 7. Record the submission ---
-    const { error: insErr } = await admin.from("submissions").insert({
+    // --- 7. Record the submission(s) — one row per requested copy, all
+    // pointing to the same finished image, so it prints N times, appears N
+    // times in the gallery/ZIP, and counts N against the per-device limit. ---
+    const row = {
       event_id: event.id,
       frame_id: frameId,
       device_id: deviceId,
       raw_storage_path: rawPath,
       finished_storage_path: finishedPath,
       orientation,
-    });
+    };
+    const { error: insErr } = await admin
+      .from("submissions")
+      .insert(Array.from({ length: copies }, () => row));
     if (insErr) throw new Error("insert");
 
     // --- 8. Sign the finished image so the guest can see their magnet ---
@@ -174,7 +186,7 @@ export async function POST(
       .createSignedUrl(finishedPath, 3600);
 
     return NextResponse.json(
-      { ok: true, url: signed?.signedUrl ?? null },
+      { ok: true, url: signed?.signedUrl ?? null, copies },
       { status: 201 },
     );
   } catch {

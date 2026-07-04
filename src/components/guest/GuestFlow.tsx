@@ -38,14 +38,37 @@ export default function GuestFlow({ event }: { event: PublicEventData }) {
     objectUrl.current = url;
 
     const o = await detectOrientation(file);
+    const frames = event.frames[o];
     setPhotoFile(file);
     setPhotoUrl(url);
     setOrientation(o);
-    setChosenFrame(null);
-    setStep("framing");
+
+    // If there's only one frame for this orientation, skip the picker and go
+    // straight to confirm (no point choosing from one option).
+    if (frames.length === 1) {
+      setChosenFrame(frames[0]);
+      setStep("confirm");
+    } else {
+      setChosenFrame(null);
+      setStep("framing");
+    }
   }
 
   function retake() {
+    setStep("capture");
+  }
+
+  // Reset everything and start a fresh magnet (from the done screen).
+  function addAnother() {
+    if (objectUrl.current) {
+      URL.revokeObjectURL(objectUrl.current);
+      objectUrl.current = null;
+    }
+    setPhotoFile(null);
+    setPhotoUrl(null);
+    setOrientation(null);
+    setChosenFrame(null);
+    setFinishedUrl(null);
     setStep("capture");
   }
 
@@ -94,6 +117,7 @@ export default function GuestFlow({ event }: { event: PublicEventData }) {
         frame={chosenFrame}
         orientation={orientation}
         deviceId={deviceId}
+        maxCopies={event.photos_per_device}
         onRetake={retake}
         onDone={(url) => {
           setFinishedUrl(url);
@@ -120,6 +144,12 @@ export default function GuestFlow({ event }: { event: PublicEventData }) {
         <p className="text-zinc-500 dark:text-zinc-400">
           {labels.guest.doneBody}
         </p>
+        <button
+          onClick={addAnother}
+          className="mt-2 rounded-xl bg-amber-500 px-6 py-3 font-semibold text-white transition-colors hover:bg-amber-600"
+        >
+          {labels.guest.addAnother}
+        </button>
       </main>
     );
   }

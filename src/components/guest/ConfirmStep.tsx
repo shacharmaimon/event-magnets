@@ -6,8 +6,7 @@ import { submitMagnet } from "@/lib/guest-submit";
 import { labels } from "@/lib/labels";
 import type { Orientation, PublicFrame } from "@/lib/types";
 
-// Final review + submit. On the expected Phase-5 501 ("not_implemented") it
-// shows a friendly "coming soon" message; Phase 6 makes submission real.
+// Final review + submit, with an optional copies stepper.
 export default function ConfirmStep({
   slug,
   photoFile,
@@ -15,6 +14,7 @@ export default function ConfirmStep({
   frame,
   orientation,
   deviceId,
+  maxCopies,
   onRetake,
   onDone,
 }: {
@@ -24,11 +24,13 @@ export default function ConfirmStep({
   frame: PublicFrame;
   orientation: Orientation;
   deviceId: string;
+  maxCopies: number; // event's photos_per_device
   onRetake: () => void;
   onDone: (finishedUrl: string | null) => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [copies, setCopies] = useState(1);
 
   async function handleConfirm() {
     setSubmitting(true);
@@ -39,6 +41,7 @@ export default function ConfirmStep({
       frameId: frame.id,
       orientation,
       deviceId,
+      copies,
     });
     setSubmitting(false);
 
@@ -51,6 +54,8 @@ export default function ConfirmStep({
     }
   }
 
+  const showCopies = maxCopies > 1;
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-5 px-6 text-center">
       <h2 className="text-xl font-semibold text-zinc-900 dark:text-white">
@@ -62,6 +67,31 @@ export default function ConfirmStep({
         frameUrl={frame.url}
         orientation={orientation}
       />
+
+      {showCopies && (
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            {labels.guest.copiesLabel}
+          </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setCopies((c) => Math.max(1, c - 1))}
+              disabled={copies <= 1}
+              className="h-9 w-9 rounded-full border border-zinc-300 text-lg font-bold text-zinc-700 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300"
+            >
+              −
+            </button>
+            <span className="w-6 text-lg font-semibold">{copies}</span>
+            <button
+              onClick={() => setCopies((c) => Math.min(maxCopies, c + 1))}
+              disabled={copies >= maxCopies}
+              className="h-9 w-9 rounded-full border border-zinc-300 text-lg font-bold text-zinc-700 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300"
+            >
+              +
+            </button>
+          </div>
+        </div>
+      )}
 
       {message && (
         <p className="text-base font-medium text-amber-600 dark:text-amber-400">
