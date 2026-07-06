@@ -6,7 +6,7 @@ import CaptureStep from "@/components/guest/CaptureStep";
 import FramePicker from "@/components/guest/FramePicker";
 import ConfirmStep from "@/components/guest/ConfirmStep";
 import DoneScreen from "@/components/guest/DoneScreen";
-import { detectOrientation } from "@/lib/orientation";
+import { preparePhoto } from "@/lib/prepare-photo";
 import { getDeviceId } from "@/lib/device-id";
 import { labels } from "@/lib/labels";
 import type { Orientation, PublicEventData, PublicFrame } from "@/lib/types";
@@ -22,6 +22,7 @@ export default function GuestFlow({ event }: { event: PublicEventData }) {
   const [chosenFrame, setChosenFrame] = useState<PublicFrame | null>(null);
   const [deviceId, setDeviceId] = useState("");
   const [finishedUrl, setFinishedUrl] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
 
   // Track the object URL so we can revoke it (avoid memory leaks on retake).
   const objectUrl = useRef<string | null>(null);
@@ -34,15 +35,18 @@ export default function GuestFlow({ event }: { event: PublicEventData }) {
   }, []);
 
   async function handlePhoto(file: File) {
+    setPreparing(true);
+    // Shrink + orient the photo on the phone before uploading.
+    const { file: prepared, orientation: o } = await preparePhoto(file);
     if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
-    const url = URL.createObjectURL(file);
+    const url = URL.createObjectURL(prepared);
     objectUrl.current = url;
 
-    const o = await detectOrientation(file);
     const frames = event.frames[o];
-    setPhotoFile(file);
+    setPhotoFile(prepared);
     setPhotoUrl(url);
     setOrientation(o);
+    setPreparing(false);
 
     // If there's only one frame for this orientation, skip the picker and go
     // straight to confirm (no point choosing from one option).
@@ -71,6 +75,16 @@ export default function GuestFlow({ event }: { event: PublicEventData }) {
     setChosenFrame(null);
     setFinishedUrl(null);
     setStep("capture");
+  }
+
+  if (preparing) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-6 text-center">
+        <p className="text-lg font-medium text-zinc-500 dark:text-zinc-400">
+          {labels.guest.processing}
+        </p>
+      </main>
+    );
   }
 
   if (step === "welcome") {

@@ -101,6 +101,7 @@ export const labels = {
     chooseSource: "איך תרצו להוסיף תמונה?",
     takePhoto: "צילום תמונה",
     uploadFromGallery: "בחירה מהגלריה",
+    processing: "רגע, מכינים את התמונה...",
     framingTitle: "בחרו מסגרת",
     framingHelp: "החליקו כדי לעבור בין המסגרות",
     prev: "הקודם",
