@@ -8,7 +8,7 @@ import type { SubmissionWithUrl } from "@/lib/types";
 // routes (authorized by the album token). Keeping the logic here avoids
 // duplicating the query + signing + zip code.
 
-export const SIGNED_URL_TTL = 3600; // 1 hour
+export const SIGNED_URL_TTL = 60 * 60 * 4; // 4 hours — long enough for a full event session (gallery reuses these URLs so images stay cached, not re-downloaded)
 const MAX_ZIP_ITEMS = 300; // protect function memory (all buffered in RAM)
 
 /** List an event's finished submissions (newest first) with signed image URLs. */

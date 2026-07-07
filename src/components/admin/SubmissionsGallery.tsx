@@ -5,9 +5,9 @@ import { apiFetch, apiFetchBlob } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import type { SubmissionWithUrl } from "@/lib/types";
 
-const POLL_MS = 7000;
+const POLL_MS = 30000;
 
-// Live-ish gallery of an event's submitted magnets. Polls every 7s so new
+// Live-ish gallery of an event's submitted magnets. Polls periodically so new
 // photos appear during the event. Supports single + batch (ZIP) download.
 export default function SubmissionsGallery({
   eventId,
@@ -23,6 +23,11 @@ export default function SubmissionsGallery({
   const [loaded, setLoaded] = useState(false);
   const [zipping, setZipping] = useState(false);
   const inFlight = useRef(false);
+  // Remember the signed URL already shown for each submission id. Re-signing on
+  // every poll would give each image a new URL and force the browser to
+  // re-download ALL thumbnails every cycle (huge egress). By reusing the URL for
+  // ids we've already seen, the browser caches them and only NEW photos load.
+  const urlById = useRef<Map<string, string>>(new Map());
 
   const load = useCallback(async () => {
     if (inFlight.current) return; // avoid overlapping polls
@@ -33,7 +38,14 @@ export default function SubmissionsGallery({
         newCount: number;
         submissions: SubmissionWithUrl[];
       }>(`/api/events/${eventId}/submissions`);
-      setSubmissions(data.submissions);
+      // Keep stable URLs for already-seen photos; only new ones get a fresh URL.
+      const merged = data.submissions.map((s) => {
+        const known = urlById.current.get(s.id);
+        if (known) return { ...s, url: known };
+        urlById.current.set(s.id, s.url);
+        return s;
+      });
+      setSubmissions(merged);
       setCount(data.count);
       setNewCount(data.newCount);
       setError("");
