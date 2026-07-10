@@ -91,6 +91,16 @@ export default function ManageEventPage() {
                   {event.name}
                 </h2>
 
+                {/* Primary action: jump straight to the photos + print page.
+                    This is the page used constantly at events, so it lives at
+                    the top as a prominent filled button. */}
+                <Link
+                  href={`/admin/events/${id}/submissions`}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-4 text-center text-base font-semibold text-white shadow-sm transition-colors hover:bg-amber-600"
+                >
+                  🖼️ {labels.adminSubmissions.goToPrint} →
+                </Link>
+
                 {/* Open / closed status + toggle */}
                 <section className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
                   <div className="flex items-center justify-between">
@@ -133,14 +143,6 @@ export default function ManageEventPage() {
 
                 {/* Shareable album link for hosts */}
                 <ShareAlbumCard albumToken={event.album_token} />
-
-                {/* Link to the submissions gallery */}
-                <Link
-                  href={`/admin/events/${id}/submissions`}
-                  className="rounded-xl border border-zinc-200 bg-white p-5 text-center font-semibold text-amber-600 transition-colors hover:border-amber-400 dark:border-zinc-800 dark:bg-zinc-900"
-                >
-                  {labels.adminSubmissions.viewGallery} →
-                </Link>
 
                 {/* Frames */}
                 <FrameManager eventId={id} onCountsChange={setFrameCounts} />

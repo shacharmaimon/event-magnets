@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase";
-import { listFinishedSubmissions } from "@/lib/submissions";
+import { groupFinishedSubmissions } from "@/lib/submissions";
 import type { PublicAlbumData } from "@/lib/types";
 
 // Server-only. Resolves an event by its ALBUM TOKEN (not the public slug) and
@@ -8,6 +8,9 @@ import type { PublicAlbumData } from "@/lib/types";
 //
 // Security: resolves exactly one event by token; exposes only finished images
 // mapped to a safe subset (id, url, orientation) — no internal fields leak.
+//
+// Copies are collapsed here (grouped by unique photo) so hosts see each photo
+// once, with no copy count — duplicates are an admin/print concern only.
 export async function getPublicAlbumData(
   token: string,
 ): Promise<PublicAlbumData | null> {
@@ -21,15 +24,15 @@ export async function getPublicAlbumData(
 
   if (!event) return null;
 
-  const submissions = await listFinishedSubmissions(event.id);
+  const photos = await groupFinishedSubmissions(event.id);
 
   return {
     name: event.name,
     welcome_heading: event.welcome_heading,
-    photos: submissions.map((s) => ({
-      id: s.id,
-      url: s.url,
-      orientation: s.orientation,
+    photos: photos.map((p) => ({
+      id: p.id,
+      url: p.url,
+      orientation: p.orientation,
     })),
   };
 }

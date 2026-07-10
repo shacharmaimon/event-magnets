@@ -35,6 +35,7 @@ export const labels = {
     closed: "סגור",
     createdAt: "נוצר בתאריך",
     manage: "ניהול",
+    prints: "תמונות והדפסה",
     loadError: "טעינת האירועים נכשלה",
     // form
     createTitle: "יצירת אירוע",
@@ -125,8 +126,9 @@ export const labels = {
   adminSubmissions: {
     title: "גלריית תמונות",
     viewGallery: "צפייה בתמונות שהתקבלו",
-    empty: "עדיין לא התקבלו תמונות",
+    goToPrint: "לדף התמונות וההדפסה",
     photosCount: "תמונות שהתקבלו",
+    magnetsCount: "מגנטים להדפסה",
     downloadOne: "הורדה",
     downloadAll: "הורדת הכל (ZIP)",
     downloadNew: "הורדת חדשות",
@@ -139,6 +141,15 @@ export const labels = {
     zipError: "הורדת הקובץ נכשלה",
     tooMany: "יותר מדי תמונות להורדה אחת",
     back: "חזרה לאירוע",
+    empty: "עדיין לא התקבלו תמונות",
+    // copies badge
+    copiesBadge: "×{n}",
+    // multi-select
+    selectedCount: "{n} נבחרו",
+    selectAll: "בחירת הכל",
+    clearSelection: "ביטול בחירה",
+    downloadSelected: "הורדת הנבחרות",
+    printSheetsSelected: "דפי הדפסה לנבחרות",
   },
   adminAlbum: {
     title: "אלבום לשיתוף",

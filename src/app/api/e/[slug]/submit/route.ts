@@ -9,6 +9,15 @@ export const maxDuration = 30; // headroom for sharp on cold starts
 
 const MAX_BYTES = 4 * 1024 * 1024; // 4 MB (Vercel body limit is ~4.5 MB)
 
+// Printer-bleed safety margin. The DNP DS-RX1HS + hand-cut shaves ~1–2mm off
+// the edges. We add a thin sacrificial ring (a slightly-zoomed copy of the same
+// image) that reaches the physical edge, and inset the crisp magnet by this
+// much, so a cut drifting up to ~2mm eats only the ring — the real frame border
+// survives. Tunable: at 300 DPI, 2mm = 300 * 2 / 25.4 ≈ 24px. Output dimensions
+// are unchanged (still exactly W×H).
+const BLEED_MM = 2;
+const BLEED_PX = Math.round((300 * BLEED_MM) / 25.4);
+
 // Map a sharp format to a file extension + content type for the raw upload.
 function rawMeta(format?: string): { ext: string; type: string } {
   if (format === "png") return { ext: "png", type: "image/png" };
@@ -137,14 +146,38 @@ export async function POST(
       .toBuffer();
 
     // Photo: apply EXIF rotation, optionally mirror (selfie fix), center-crop
-    // cover to target (matches the preview), overlay the frame, encode JPEG.
-    const finished = await sharp(rawBytes, { failOn: "none" })
+    // cover to target (matches the preview), overlay the frame. Kept as a
+    // lossless PNG intermediate so the bleed step below doesn't double-compress.
+    const magnet = await sharp(rawBytes, { failOn: "none" })
       .rotate()
       .flop(mirrored) // horizontal mirror only when requested
       .resize(W, H, { fit: "cover", position: "center" })
       .composite([{ input: frameBuf, top: 0, left: 0 }])
-      .jpeg({ quality: 90, chromaSubsampling: "4:4:4", mozjpeg: true })
+      .png()
       .toBuffer();
+
+    // Printer-bleed wrap (see BLEED_PX). bleedBase is the magnet zoomed to fill
+    // the full W×H — a sacrificial ring whose frame border reaches the physical
+    // edge. inset is the crisp full magnet, shrunk and centered so the cut can
+    // eat the ring without touching the real border. Result stays exactly W×H.
+    const finished = await (async () => {
+      if (BLEED_PX <= 0) {
+        return sharp(magnet)
+          .jpeg({ quality: 90, chromaSubsampling: "4:4:4", mozjpeg: true })
+          .toBuffer();
+      }
+      const bleedBase = await sharp(magnet)
+        .resize(W + 2 * BLEED_PX, H + 2 * BLEED_PX, { fit: "fill" })
+        .extract({ left: BLEED_PX, top: BLEED_PX, width: W, height: H })
+        .toBuffer();
+      const inset = await sharp(magnet)
+        .resize(W - 2 * BLEED_PX, H - 2 * BLEED_PX, { fit: "fill" })
+        .toBuffer();
+      return sharp(bleedBase)
+        .composite([{ input: inset, top: BLEED_PX, left: BLEED_PX }])
+        .jpeg({ quality: 90, chromaSubsampling: "4:4:4", mozjpeg: true })
+        .toBuffer();
+    })();
 
     // --- 6. Upload raw original + finished image ---
     const id = randomUUID();

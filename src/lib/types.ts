@@ -69,11 +69,33 @@ export interface SubmissionRecord {
   finished_storage_path: string | null;
   orientation: Orientation | null;
   created_at: string;
+  downloaded_at: string | null; // set when downloaded as an individual magnet
+  printed_at: string | null; // set when downloaded as a 2-up print sheet
 }
 
 /** A submission plus a signed URL to its finished (framed) image. */
 export interface SubmissionWithUrl extends SubmissionRecord {
   url: string;
+}
+
+/**
+ * One UNIQUE finished photo for the admin gallery, with its copy count. Copies
+ * are stored as N identical rows sharing one finished_storage_path; the gallery
+ * shows each photo once and badges it "xN". `path` is the shared
+ * finished_storage_path — used as the group key and passed to batch actions.
+ */
+export interface GroupedSubmission {
+  id: string; // representative row id (first of the group)
+  path: string; // shared finished_storage_path (group key)
+  url: string; // signed URL to the finished image
+  orientation: Orientation | null;
+  copies: number; // number of rows sharing this path
+}
+
+/** The two independent "new" counters shown on the admin print page. */
+export interface NewCounts {
+  newIndividual: number; // finished rows not yet downloaded individually
+  newSheets: number; // finished rows not yet downloaded as print sheets
 }
 
 /** A single photo as exposed in a public host album (only safe fields). */

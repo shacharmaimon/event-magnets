@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import {
-  listFinishedSubmissions,
+  groupFinishedSubmissions,
   countNewSubmissions,
 } from "@/lib/submissions";
 
@@ -9,7 +9,9 @@ export const runtime = "nodejs";
 
 type Params = { params: Promise<{ id: string }> };
 
-// GET /api/events/[id]/submissions — admin list of finished submissions.
+// GET /api/events/[id]/submissions — admin list of finished submissions,
+// collapsed by unique photo (copies badged in the UI) plus the two independent
+// "new" counters (individual downloads vs print sheets).
 export async function GET(request: Request, { params }: Params) {
   const user = await getUserFromRequest(request);
   if (!user) {
@@ -17,11 +19,18 @@ export async function GET(request: Request, { params }: Params) {
   }
 
   const { id } = await params;
-  const submissions = await listFinishedSubmissions(id);
-  const newCount = await countNewSubmissions(id);
+  const [submissions, counts] = await Promise.all([
+    groupFinishedSubmissions(id),
+    countNewSubmissions(id),
+  ]);
+  // count = total magnets to print (copies expanded); submissions.length is the
+  // number of unique photos shown on the page.
+  const totalMagnets = submissions.reduce((n, s) => n + s.copies, 0);
   return NextResponse.json({
-    count: submissions.length,
-    newCount,
+    count: totalMagnets,
+    uniqueCount: submissions.length,
+    newIndividual: counts.newIndividual,
+    newSheets: counts.newSheets,
     submissions,
   });
 }

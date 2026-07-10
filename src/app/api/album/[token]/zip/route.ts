@@ -21,7 +21,9 @@ export async function GET(_request: Request, { params }: Params) {
     return NextResponse.json({ error: "not_available" }, { status: 404 });
   }
 
-  const res = await zipFinishedSubmissions(event.id);
+  // Hosts get one copy per unique photo — duplicate "copies" are meaningless to
+  // them (that's an admin/print concern). dedupe collapses shared paths.
+  const res = await zipFinishedSubmissions(event.id, { dedupe: true });
   if (!res.ok) {
     return NextResponse.json({ error: res.reason }, { status: 413 });
   }

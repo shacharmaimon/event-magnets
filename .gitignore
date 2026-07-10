@@ -42,3 +42,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .npmrc
+
+# JetBrains IDE
+.idea/
