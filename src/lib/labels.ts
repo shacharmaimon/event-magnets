@@ -151,6 +151,51 @@ export const labels = {
     downloadSelected: "הורדת הנבחרות",
     printSheetsSelected: "דפי הדפסה לנבחרות",
   },
+  bulkUpload: {
+    // entry button + heading
+    openButton: "העלאת תמונות מהמחשב",
+    title: "העלאת תמונות מהמחשב",
+    help: "גררו או בחרו תמונות מהמצלמה. נזהה אוטומטית לרוחב/לאורך, תבחרו מסגרת, תגדירו כמה עותקים ותמחקו מה שלא מתאים — ורק אז יעלה.",
+    // step: pick files
+    chooseFiles: "בחירת תמונות",
+    dropHint: "גררו לכאן תמונות או לחצו לבחירה",
+    // step: preparing
+    preparingTemplate: "מכין {done}/{total}...",
+    // step: choose frames
+    chooseFramesTitle: "בחרו מסגרת",
+    landscapeFrame: "מסגרת לרוחב",
+    portraitFrame: "מסגרת לאורך",
+    noFrameWarnTemplate: "אין מסגרת {orientation} — תמונות כאלה ידולגו",
+    noFramesAtAll: "לאירוע אין מסגרות. הוסיפו מסגרת לפני העלאה.",
+    continueToReview: "המשך לסקירה",
+    // step: review
+    reviewTitle: "סקירה לפני העלאה",
+    summaryTemplate: "{photos} תמונות · {magnets} מגנטים",
+    copiesLabel: "עותקים",
+    deletePhoto: "מחיקה",
+    enlargeHint: "לחצו על תמונה להגדלה",
+    keyboardHint: "מקשים: ← → מעבר · +/− עותקים · Delete מחיקה · Esc סגירה",
+    // commit
+    uploadButton: "העלאה",
+    uploadingTemplate: "מעלה {done}/{total}...",
+    doneSummaryTemplate: "הועלו {uploaded} · דולגו {skipped}",
+    startOver: "העלאה נוספת",
+    cancel: "ביטול",
+    close: "סגירה",
+    // orientation words (for the skip warning)
+    orientationLandscape: "לרוחב",
+    orientationPortrait: "לאורך",
+    uploadFailed: "חלק מההעלאות נכשלו",
+  },
+  qrPage: {
+    downloadButton: "הורדת דף להדפסה (QR)",
+    preparing: "מכין דף...",
+    scanToStart: "!סרקו להתחלה",
+    step1: "צלמו",
+    step2: "עצבו",
+    step3: "הדפיסו",
+    error: "יצירת הדף נכשלה",
+  },
   adminAlbum: {
     title: "אלבום לשיתוף",
     help: "שלחו את הקישור למארחי האירוע — הם יוכלו לצפות ולהוריד את כל התמונות",

@@ -2,12 +2,22 @@
 
 import { useState } from "react";
 import QrCode from "@/components/admin/QrCode";
+import PrintableQrButton from "@/components/admin/PrintableQrButton";
 import { labels } from "@/lib/labels";
 
 // Shows the guest link for an event (read-only, LTR) with a copy button, plus
-// its QR code. The base URL comes from NEXT_PUBLIC_SITE_URL when set (so
-// production links are stable), otherwise the current browser origin.
-export default function GuestLinkCard({ slug }: { slug: string }) {
+// its QR code and a "download printable QR page" button. The base URL comes from
+// NEXT_PUBLIC_SITE_URL when set (so production links are stable), otherwise the
+// current browser origin.
+export default function GuestLinkCard({
+  slug,
+  welcomeHeading,
+  eventName,
+}: {
+  slug: string;
+  welcomeHeading: string;
+  eventName: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   const base =
@@ -47,6 +57,15 @@ export default function GuestLinkCard({ slug }: { slug: string }) {
         </div>
 
         <QrCode value={url} />
+      </div>
+
+      {/* Printable 10x15 QR + instructions page for the DNP printer. */}
+      <div className="mt-4">
+        <PrintableQrButton
+          slug={slug}
+          welcomeHeading={welcomeHeading}
+          eventName={eventName}
+        />
       </div>
     </section>
   );

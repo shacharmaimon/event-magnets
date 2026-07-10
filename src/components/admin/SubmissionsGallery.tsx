@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import BulkUpload from "@/components/admin/BulkUpload";
 import { apiFetch, apiFetchBlob } from "@/lib/api-client";
 import { labels } from "@/lib/labels";
 import type { GroupedSubmission } from "@/lib/types";
@@ -160,6 +161,9 @@ export default function SubmissionsGallery({
 
   return (
     <section className="flex flex-col gap-4 pb-24">
+      {/* Bulk upload from computer (camera-only + hybrid events) */}
+      <BulkUpload eventId={eventId} onCommitted={load} />
+
       <div className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold text-zinc-900 dark:text-white">
           {labels.adminSubmissions.magnetsCount}: {count}

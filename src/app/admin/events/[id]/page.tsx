@@ -139,7 +139,11 @@ export default function ManageEventPage() {
                 </section>
 
                 {/* Guest link + QR */}
-                <GuestLinkCard slug={event.public_slug} />
+                <GuestLinkCard
+                  slug={event.public_slug}
+                  welcomeHeading={event.welcome_heading}
+                  eventName={event.name}
+                />
 
                 {/* Shareable album link for hosts */}
                 <ShareAlbumCard albumToken={event.album_token} />
