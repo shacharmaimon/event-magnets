@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { zipFinishedSubmissions } from "@/lib/submissions";
+import { zipFinishedSubmissions, zipToWebStream } from "@/lib/submissions";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 type Params = { params: Promise<{ token: string }> };
 
@@ -28,7 +28,7 @@ export async function GET(_request: Request, { params }: Params) {
     return NextResponse.json({ error: res.reason }, { status: 413 });
   }
 
-  return new Response(res.bytes as BodyInit, {
+  return new Response(zipToWebStream(res.zip), {
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": 'attachment; filename="album.zip"',

@@ -13,7 +13,72 @@ import type {
 // duplicating the query + signing + zip code.
 
 export const SIGNED_URL_TTL = 60 * 60 * 4; // 4 hours — long enough for a full event session (gallery reuses these URLs so images stay cached, not re-downloaded)
-const MAX_ZIP_ITEMS = 300; // protect function memory (all buffered in RAM)
+// Peak memory is bounded by the file buffers held while zipping. Streaming the
+// archive out (instead of buffering the whole zip too) keeps this affordable, so
+// we allow a healthy batch. The guard still prevents a runaway OOM.
+const MAX_ZIP_ITEMS = 600;
+// Storage downloads are network-bound, so fetching several at once slashes the
+// wall-clock vs the old one-at-a-time loop (the cause of the 60s timeouts).
+const DOWNLOAD_CONCURRENCY = 8;
+// Print-sheet composition is CPU/sharp-bound — a smaller pool avoids thrashing.
+const SHEET_CONCURRENCY = 4;
+
+/**
+ * Run `fn` over `items` with at most `limit` in flight at once, preserving the
+ * input order in the returned array. Used to parallelize the per-file storage
+ * downloads (and sheet compositing) that previously ran sequentially.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const i = cursor++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  );
+  return results;
+}
+
+/**
+ * Bridge a built JSZip into a web ReadableStream so the route can stream the
+ * archive to the browser as it's serialized — the response starts immediately
+ * (no "frozen then fails") and we never hold the whole zip buffer in memory on
+ * top of the file buffers. Applies basic backpressure via pause/resume.
+ */
+export function zipToWebStream(zip: JSZip): ReadableStream<Uint8Array> {
+  const helper = zip.generateInternalStream({
+    type: "uint8array",
+    streamFiles: true,
+  });
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      helper
+        .on("data", (chunk: Uint8Array) => {
+          controller.enqueue(chunk);
+          if (controller.desiredSize !== null && controller.desiredSize <= 0) {
+            helper.pause();
+          }
+        })
+        .on("end", () => controller.close())
+        .on("error", (err: unknown) => controller.error(err));
+      helper.resume();
+    },
+    pull() {
+      helper.resume();
+    },
+    cancel() {
+      helper.pause();
+    },
+  });
+}
 
 /** List an event's finished submissions (newest first) with signed image URLs. */
 export async function listFinishedSubmissions(
@@ -115,7 +180,7 @@ export interface ZipOptions {
 }
 
 type ZipResult =
-  | { ok: true; bytes: Uint8Array; empty: boolean }
+  | { ok: true; zip: JSZip; empty: boolean }
   | { ok: false; reason: "too_many" };
 
 /**
@@ -146,23 +211,23 @@ export async function zipFinishedSubmissions(
   if (items.length > MAX_ZIP_ITEMS) {
     return { ok: false, reason: "too_many" };
   }
+  const zip = new JSZip();
   if (items.length === 0) {
-    const zip = new JSZip();
-    return { ok: true, bytes: await zip.generateAsync({ type: "uint8array" }), empty: true };
+    return { ok: true, zip, empty: true };
   }
 
-  const zip = new JSZip();
-  for (let i = 0; i < items.length; i++) {
+  // Download every finished image in parallel batches (was sequential — the
+  // cause of the 60s timeouts on big events). Order is preserved so file names
+  // stay stable.
+  await mapWithConcurrency(items, DOWNLOAD_CONCURRENCY, async (item, i) => {
     const { data: blob } = await admin.storage
       .from("submissions")
-      .download(items[i].finished_storage_path as string);
+      .download(item.finished_storage_path as string);
     if (blob) {
       const buf = Buffer.from(await blob.arrayBuffer());
       zip.file(`magnet-${String(i + 1).padStart(3, "0")}.jpg`, buf);
     }
-  }
-
-  const bytes = await zip.generateAsync({ type: "uint8array" });
+  });
 
   // Mark these rows downloaded (only for the "new" download; never for selection).
   if (opts.onlyNew && !selecting) {
@@ -173,7 +238,7 @@ export async function zipFinishedSubmissions(
       .in("id", ids);
   }
 
-  return { ok: true, bytes, empty: false };
+  return { ok: true, zip, empty: false };
 }
 
 /** Keep only the first row per finished_storage_path (order preserved). */
@@ -231,54 +296,59 @@ export async function zipPrintSheets(
   if (items.length > MAX_ZIP_ITEMS) {
     return { ok: false, reason: "too_many" };
   }
-  if (items.length === 0) {
-    const zip = new JSZip();
-    return {
-      ok: true,
-      bytes: await zip.generateAsync({ type: "uint8array" }),
-      empty: true,
-    };
-  }
-
-  // Normalize every magnet to a landscape 1200x900 buffer (rotate portraits).
-  const magnets: Buffer[] = [];
-  for (const item of items) {
-    const { data: blob } = await admin.storage
-      .from("submissions")
-      .download(item.finished_storage_path as string);
-    if (!blob) continue;
-    const src = Buffer.from(await blob.arrayBuffer());
-    const normalized = await sharp(src)
-      .rotate(item.orientation === "portrait" ? 90 : 0)
-      .resize(MAGNET_W, MAGNET_H, { fit: "fill" })
-      .toBuffer();
-    magnets.push(normalized);
-  }
-
-  // Pair them up onto sheets (two stacked per 1200x1800 sheet).
   const zip = new JSZip();
-  let sheetNum = 0;
-  for (let i = 0; i < magnets.length; i += 2) {
-    sheetNum++;
-    const composites = [{ input: magnets[i], top: 0, left: 0 }];
-    if (i + 1 < magnets.length) {
-      composites.push({ input: magnets[i + 1], top: MAGNET_H, left: 0 });
-    }
-    const sheet = await sharp({
-      create: {
-        width: SHEET_W,
-        height: SHEET_H,
-        channels: 3,
-        background: { r: 255, g: 255, b: 255 },
-      },
-    })
-      .composite(composites)
-      .jpeg({ quality: 92, chromaSubsampling: "4:4:4", mozjpeg: true })
-      .toBuffer();
-    zip.file(`sheet-${String(sheetNum).padStart(3, "0")}.jpg`, sheet);
+  if (items.length === 0) {
+    return { ok: true, zip, empty: true };
   }
 
-  const bytes = await zip.generateAsync({ type: "uint8array" });
+  // Download + normalize every magnet to a landscape 1200x900 buffer (rotate
+  // portraits), in parallel batches (was sequential — the timeout cause). Order
+  // is preserved; failed downloads become null and are dropped.
+  const normalized = await mapWithConcurrency(
+    items,
+    SHEET_CONCURRENCY,
+    async (item) => {
+      const { data: blob } = await admin.storage
+        .from("submissions")
+        .download(item.finished_storage_path as string);
+      if (!blob) return null;
+      const src = Buffer.from(await blob.arrayBuffer());
+      return sharp(src)
+        .rotate(item.orientation === "portrait" ? 90 : 0)
+        .resize(MAGNET_W, MAGNET_H, { fit: "fill" })
+        .toBuffer();
+    },
+  );
+  const magnets = normalized.filter((b): b is Buffer => b !== null);
+
+  // Pair them up onto sheets (two stacked per 1200x1800 sheet), compositing the
+  // sheets in parallel batches too. Precompute the pairs to keep sheet order.
+  const pairs: Array<[Buffer, Buffer | undefined]> = [];
+  for (let i = 0; i < magnets.length; i += 2) {
+    pairs.push([magnets[i], magnets[i + 1]]);
+  }
+  const sheets = await mapWithConcurrency(
+    pairs,
+    SHEET_CONCURRENCY,
+    async ([top, bottom]) => {
+      const composites = [{ input: top, top: 0, left: 0 }];
+      if (bottom) composites.push({ input: bottom, top: MAGNET_H, left: 0 });
+      return sharp({
+        create: {
+          width: SHEET_W,
+          height: SHEET_H,
+          channels: 3,
+          background: { r: 255, g: 255, b: 255 },
+        },
+      })
+        .composite(composites)
+        .jpeg({ quality: 92, chromaSubsampling: "4:4:4", mozjpeg: true })
+        .toBuffer();
+    },
+  );
+  sheets.forEach((sheet, i) => {
+    zip.file(`sheet-${String(i + 1).padStart(3, "0")}.jpg`, sheet);
+  });
 
   if (opts.onlyNew && !selecting) {
     const ids = items.map((r) => r.id);
@@ -288,5 +358,5 @@ export async function zipPrintSheets(
       .in("id", ids);
   }
 
-  return { ok: true, bytes, empty: false };
+  return { ok: true, zip, empty: false };
 }

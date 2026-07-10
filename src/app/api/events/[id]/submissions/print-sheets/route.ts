@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
-import { zipPrintSheets } from "@/lib/submissions";
+import { zipPrintSheets, zipToWebStream } from "@/lib/submissions";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Print sheets also run sharp on every magnet, so they need the full headroom.
+export const maxDuration = 300;
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -27,7 +28,7 @@ export async function GET(request: Request, { params }: Params) {
   if (!res.ok) {
     return NextResponse.json({ error: res.reason }, { status: 413 });
   }
-  return new Response(res.bytes as BodyInit, { headers: zipHeaders });
+  return new Response(zipToWebStream(res.zip), { headers: zipHeaders });
 }
 
 // POST /api/events/[id]/submissions/print-sheets — print sheets for only a
@@ -52,5 +53,5 @@ export async function POST(request: Request, { params }: Params) {
   if (!res.ok) {
     return NextResponse.json({ error: res.reason }, { status: 413 });
   }
-  return new Response(res.bytes as BodyInit, { headers: zipHeaders });
+  return new Response(zipToWebStream(res.zip), { headers: zipHeaders });
 }

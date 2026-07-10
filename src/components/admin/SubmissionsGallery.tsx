@@ -229,6 +229,12 @@ export default function SubmissionsGallery({
 
       {error && <p className="text-red-600 dark:text-red-400">{error}</p>}
 
+      {zipping && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+          {labels.adminSubmissions.preparingZipLarge}
+        </p>
+      )}
+
       {loaded && count === 0 && (
         <p className="text-zinc-500">{labels.adminSubmissions.empty}</p>
       )}

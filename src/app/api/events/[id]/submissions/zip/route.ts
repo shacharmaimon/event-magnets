@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
-import { zipFinishedSubmissions } from "@/lib/submissions";
+import { zipFinishedSubmissions, zipToWebStream } from "@/lib/submissions";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Big events take a while to gather + zip; 300s (the platform max) is well above
+// the old 60s cap that was killing large downloads. Streaming the zip out also
+// starts the response immediately so the browser never looks frozen.
+export const maxDuration = 300;
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -26,7 +29,7 @@ export async function GET(request: Request, { params }: Params) {
   if (!res.ok) {
     return NextResponse.json({ error: res.reason }, { status: 413 });
   }
-  return new Response(res.bytes as BodyInit, { headers: zipHeaders });
+  return new Response(zipToWebStream(res.zip), { headers: zipHeaders });
 }
 
 // POST /api/events/[id]/submissions/zip — download only a SELECTED set of photos
@@ -51,5 +54,5 @@ export async function POST(request: Request, { params }: Params) {
   if (!res.ok) {
     return NextResponse.json({ error: res.reason }, { status: 413 });
   }
-  return new Response(res.bytes as BodyInit, { headers: zipHeaders });
+  return new Response(zipToWebStream(res.zip), { headers: zipHeaders });
 }
