@@ -98,7 +98,7 @@ export default function ManageEventPage() {
                   href={`/admin/events/${id}/submissions`}
                   className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-4 text-center text-base font-semibold text-white shadow-sm transition-colors hover:bg-amber-600"
                 >
-                  🖼️ {labels.adminSubmissions.goToPrint} →
+                  {labels.adminSubmissions.goToPrint} →
                 </Link>
 
                 {/* Open / closed status + toggle */}

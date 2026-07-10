@@ -65,7 +65,7 @@ export default function EventList() {
               className="flex items-center gap-1 border-s border-zinc-200 px-4 text-sm font-medium text-amber-600 transition-colors hover:bg-amber-50 dark:border-zinc-800 dark:hover:bg-amber-950/30"
               title={labels.adminEvents.prints}
             >
-              🖼️ <span className="hidden sm:inline">{labels.adminEvents.prints}</span>
+              {labels.adminEvents.prints}
             </Link>
           </div>
         </li>
