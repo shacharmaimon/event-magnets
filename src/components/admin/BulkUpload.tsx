@@ -417,6 +417,7 @@ export default function BulkUpload({
                     photoUrl={it.url}
                     frameUrl={frame.url}
                     orientation={it.orientation}
+                    window={frame.window}
                   />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -496,6 +497,7 @@ export default function BulkUpload({
                   photoUrl={it.url}
                   frameUrl={frame.url}
                   orientation={it.orientation}
+                  window={frame.window}
                 />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element

@@ -56,6 +56,7 @@ export default function FramePicker({
             photoUrl={photoUrl}
             frameUrl={current.url}
             orientation={orientation}
+            window={current.window}
           />
         )}
       </div>

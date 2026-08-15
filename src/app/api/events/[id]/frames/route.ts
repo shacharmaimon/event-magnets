@@ -3,6 +3,8 @@ import sharp from "sharp";
 import { randomUUID } from "crypto";
 import { getUserFromRequest } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { detectWindow } from "@/lib/composite";
+import { ensureFrameWindows, type FrameRowRaw } from "@/lib/frames";
 import type { Orientation } from "@/lib/types";
 
 // sharp needs the Node.js runtime (not edge).
@@ -54,9 +56,14 @@ export async function GET(request: Request, { params }: Params) {
     }
   }
 
+  // Ensure each frame's transparent-opening window is known (backfills old
+  // frames on first read, then it's a no-op).
+  const windows = await ensureFrameWindows((rows ?? []) as FrameRowRaw[]);
+
   const withUrls = (rows ?? []).map((r) => ({
     ...r,
     url: urlByPath.get(r.storage_path) ?? "",
+    window: windows.get(r.id) ?? null,
   }));
 
   return NextResponse.json({
@@ -110,6 +117,9 @@ export async function POST(request: Request, { params }: Params) {
       );
     }
 
+    // Detect the transparent opening now so we don't re-read the file later.
+    const win = await detectWindow(buffer);
+
     const storagePath = `${id}/${randomUUID()}.png`;
 
     const { error: uploadErr } = await admin.storage
@@ -124,7 +134,15 @@ export async function POST(request: Request, { params }: Params) {
 
     const { data: row, error: insertErr } = await admin
       .from("frames")
-      .insert({ event_id: id, storage_path: storagePath, orientation })
+      .insert({
+        event_id: id,
+        storage_path: storagePath,
+        orientation,
+        window_x: win?.x ?? null,
+        window_y: win?.y ?? null,
+        window_w: win?.w ?? null,
+        window_h: win?.h ?? null,
+      })
       .select("*")
       .single();
 

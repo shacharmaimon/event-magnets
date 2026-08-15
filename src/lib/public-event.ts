@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase";
+import { ensureFrameWindows, type FrameRowRaw } from "@/lib/frames";
 import type { PublicEventData, PublicFrame } from "@/lib/types";
 
 // Server-only. Returns the SAFE, public subset of an event's data for guests —
@@ -32,7 +33,9 @@ export async function getPublicEventData(
 
   const { data: frameRows } = await admin
     .from("frames")
-    .select("id, orientation, storage_path")
+    .select(
+      "id, orientation, storage_path, window_x, window_y, window_w, window_h",
+    )
     .eq("event_id", event.id)
     .order("display_order", { ascending: true })
     .order("created_at", { ascending: true });
@@ -49,10 +52,14 @@ export async function getPublicEventData(
     }
   }
 
+  // Ensure each frame's opening window is known (backfills old frames once).
+  const windows = await ensureFrameWindows((frameRows ?? []) as FrameRowRaw[]);
+
   const publicFrames: PublicFrame[] = (frameRows ?? []).map((f) => ({
     id: f.id,
     orientation: f.orientation,
     url: urlByPath.get(f.storage_path) ?? "",
+    window: windows.get(f.id) ?? null,
   }));
 
   return {

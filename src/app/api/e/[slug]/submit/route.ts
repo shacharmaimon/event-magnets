@@ -73,7 +73,9 @@ export async function POST(
   // --- 3. Frame must belong to this event, orientation must match ---
   const { data: frame } = await admin
     .from("frames")
-    .select("event_id, storage_path, orientation")
+    .select(
+      "event_id, storage_path, orientation, window_x, window_y, window_w, window_h",
+    )
     .eq("id", frameId)
     .maybeSingle();
   if (!frame || frame.event_id !== event.id) {
@@ -128,12 +130,26 @@ export async function POST(
     }
     const frameBytes = Buffer.from(await frameBlob.arrayBuffer());
 
-    // Frame + photo -> print-ready magnet (shared pipeline; includes bleed).
+    // The frame's opening (if detected) — place the whole photo inside it.
+    const window =
+      frame.window_x != null &&
+      frame.window_y != null &&
+      frame.window_w != null &&
+      frame.window_h != null
+        ? {
+            x: frame.window_x,
+            y: frame.window_y,
+            w: frame.window_w,
+            h: frame.window_h,
+          }
+        : null;
+
+    // Frame + photo -> print-ready magnet (shared pipeline).
     const finished = await compositeMagnet(
       rawBytes,
       frameBytes,
       orientation as Orientation,
-      { mirrored },
+      { mirrored, window },
     );
 
     // --- 6. Upload raw original + finished image ---

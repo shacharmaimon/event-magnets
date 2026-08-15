@@ -69,6 +69,7 @@ export default function ConfirmStep({
         frameUrl={frame.url}
         orientation={orientation}
         mirrored={mirrored}
+        window={frame.window}
       />
 
       {/* Flip — fixes mirrored selfies from the front camera */}

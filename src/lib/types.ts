@@ -16,6 +16,19 @@ export interface EventRecord {
 
 export type Orientation = "portrait" | "landscape";
 
+/**
+ * A frame's transparent opening (the hole the photo shows through), as fractions
+ * (0..1) of the frame's width/height. Detected from the frame's alpha channel and
+ * reused by BOTH the server compositor and the on-screen preview so they match.
+ * null = not yet detected (compositor falls back to legacy cover behavior).
+ */
+export interface FrameWindow {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 /** One row of the `frames` table. */
 export interface FrameRecord {
   id: string;
@@ -24,6 +37,7 @@ export interface FrameRecord {
   orientation: Orientation;
   display_order: number;
   created_at: string;
+  window: FrameWindow | null;
 }
 
 /** A frame plus a temporary signed URL for displaying its (private) image. */
@@ -42,6 +56,7 @@ export interface PublicFrame {
   id: string;
   orientation: Orientation;
   url: string;
+  window: FrameWindow | null;
 }
 
 export interface PublicGroupedFrames {
