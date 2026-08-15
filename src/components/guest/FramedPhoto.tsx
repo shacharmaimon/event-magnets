@@ -7,9 +7,9 @@ import type { FrameWindow, Orientation } from "@/lib/types";
 //
 // Two modes, matching the server compositor (src/lib/composite.ts) exactly so
 // what the guest frames is what prints:
-// - With `window` (the frame's detected opening): the WHOLE photo sits INSIDE
-//   the opening (object-contain, nothing cropped), over a blurred copy that
-//   fills the thin side strips. The frame sits around it.
+// - With `window` (the frame's detected opening): the photo is cover-cropped to
+//   fill the opening rectangle exactly (no bars, no blur). The frame sits around
+//   it, and the border trims whatever doesn't fit.
 // - Without a window: the photo covers the whole magnet and the frame overlays
 //   it (legacy behavior).
 export default function FramedPhoto({
@@ -33,7 +33,7 @@ export default function FramedPhoto({
       className={`relative mx-auto w-full max-w-sm overflow-hidden rounded-xl ${aspect} bg-[repeating-conic-gradient(#eee_0_25%,#fff_0_50%)] bg-[length:16px_16px]`}
     >
       {window ? (
-        // Photo constrained to the frame's opening rectangle (as % of canvas).
+        // Photo cover-cropped to fill the frame's opening (as % of canvas).
         <div
           className="absolute overflow-hidden"
           style={{
@@ -43,21 +43,11 @@ export default function FramedPhoto({
             height: `${window.h * 100}%`,
           }}
         >
-          {/* Blurred cover backdrop fills the strips left by shape mismatch. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={photoUrl}
             alt=""
-            aria-hidden
-            className="absolute inset-0 h-full w-full scale-110 object-cover blur-lg"
-            style={mirrorStyle}
-          />
-          {/* The whole photo, uncropped, fit inside the opening. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={photoUrl}
-            alt=""
-            className="absolute inset-0 h-full w-full object-contain"
+            className="absolute inset-0 h-full w-full object-cover"
             style={mirrorStyle}
           />
         </div>

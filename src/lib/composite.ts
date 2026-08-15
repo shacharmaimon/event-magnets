@@ -99,11 +99,12 @@ export async function detectWindow(
  * Composite a raw photo with a frame overlay into a finished magnet JPEG.
  *
  * Two modes:
- * - With `opts.window` (the frame's transparent opening): the WHOLE photo is
- *   placed INSIDE the opening (fit: inside — nothing cropped), and the thin
- *   strips left by the shape mismatch are filled with a blurred, zoomed copy of
- *   the same photo. The frame sits around it. This is the "photo inside the
- *   frame" behavior — no content is ever hidden under the border/banner.
+ * - With `opts.window` (the frame's transparent opening): the photo is
+ *   cover-cropped to fill EXACTLY the opening rectangle and the frame sits
+ *   around it. This crops once (into the window) instead of the old
+ *   crop-to-magnet-then-cover-with-frame, so no content is hidden under the
+ *   border/banner and there are no bars or blur to fill — the photo fills the
+ *   opening cleanly.
  * - Without a window (legacy / opaque frames): the photo is cover-cropped to the
  *   full magnet and the frame is laid on top (original behavior).
  *
@@ -148,25 +149,14 @@ export async function compositeMagnet(
   const ww = Math.min(W - wx, Math.round(win.w * W));
   const wh = Math.min(H - wy, Math.round(win.h * H));
 
-  // Backdrop: blurred cover copy that fills the whole opening (no hard bars).
-  const backdrop = await sharp(photo)
+  // Cover-crop the photo to fill the opening exactly (crop once, into the
+  // window). No bars, no blur — the frame border trims whatever doesn't fit.
+  const windowContent = await sharp(photo)
     .resize(ww, wh, { fit: "cover", position: "center" })
-    .blur(18)
     .toBuffer();
 
-  // Inset: the ENTIRE photo, uncropped, fit inside the opening.
-  const inset = await sharp(photo)
-    .resize(ww, wh, { fit: "inside", withoutEnlargement: false })
-    .toBuffer();
-
-  // Center the inset over the blurred backdrop → the opening's content.
-  const windowContent = await sharp(backdrop)
-    .composite([{ input: inset, gravity: "centre" }])
-    .png()
-    .toBuffer();
-
-  // Transparent base → place window content at the opening → frame on top →
-  // flatten on white (in case any frame area is semi-transparent) → JPEG.
+  // Base → place the photo at the opening → frame on top → flatten on white
+  // (in case any frame area is semi-transparent) → JPEG.
   return sharp({
     create: {
       width: W,
