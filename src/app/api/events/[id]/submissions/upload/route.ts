@@ -25,10 +25,15 @@ function rawMeta(format?: string): { ext: string; type: string } {
   return { ext: "jpg", type: "image/jpeg" };
 }
 
-// POST /api/events/[id]/submissions/upload — ADMIN. Composite one uploaded photo
-// with a chosen frame and add it to the event as N copies, exactly like a guest
-// submission but with NO open-check and NO per-device limit. One photo per
-// request (the client uploads a batch sequentially with a progress bar).
+// POST /api/events/[id]/submissions/upload — ADMIN. Composite one photo with a
+// chosen frame and add it as N copies (no open-check, no per-device limit).
+//
+// Two request shapes:
+// - JSON  { originalId, frameId, orientation, copies }: composite from an
+//   already-uploaded original photo (the "upload once, feed both" flow) — no
+//   image bytes travel here, so committing magnets is near-instant.
+// - multipart { file, frameId, orientation, copies }: legacy/fallback path that
+//   uploads the image directly.
 export async function POST(request: Request, { params }: Params) {
   const user = await getUserFromRequest(request);
   if (!user) {
@@ -36,38 +41,57 @@ export async function POST(request: Request, { params }: Params) {
   }
 
   const { id: eventId } = await params;
+  const contentType = request.headers.get("content-type") ?? "";
+  const admin = createAdminClient();
 
-  // --- Parse + validate the multipart form ---
-  let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
-    return NextResponse.json({ error: "no_file" }, { status: 400 });
+  // --- Gather inputs from either JSON (by-reference) or multipart (by-file) ---
+  let frameId: string;
+  let orientation: string;
+  let copiesRaw: number;
+  let originalId: string | null = null;
+  let file: File | null = null;
+
+  if (contentType.includes("application/json")) {
+    const body = await request.json().catch(() => ({}));
+    frameId = typeof body?.frameId === "string" ? body.frameId : "";
+    orientation = body?.orientation;
+    copiesRaw = Number(body?.copies ?? 1);
+    originalId = typeof body?.originalId === "string" ? body.originalId : null;
+    if (!originalId) {
+      return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+    }
+  } else {
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      return NextResponse.json({ error: "no_file" }, { status: 400 });
+    }
+    const f = form.get("file");
+    if (!(f instanceof File)) {
+      return NextResponse.json({ error: "no_file" }, { status: 400 });
+    }
+    if (f.size > MAX_BYTES) {
+      return NextResponse.json({ error: "file_too_large" }, { status: 400 });
+    }
+    file = f;
+    frameId = typeof form.get("frameId") === "string" ? (form.get("frameId") as string) : "";
+    orientation = form.get("orientation") as string;
+    copiesRaw = Number(form.get("copies") ?? 1);
   }
-  const file = form.get("file");
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "no_file" }, { status: 400 });
-  }
-  const frameId = form.get("frameId");
-  const orientation = form.get("orientation");
+
   if (
-    typeof frameId !== "string" ||
+    !frameId ||
     (orientation !== "portrait" && orientation !== "landscape")
   ) {
     return NextResponse.json({ error: "missing_fields" }, { status: 400 });
   }
-  const copiesRaw = Number(form.get("copies") ?? 1);
   const copies =
     Number.isInteger(copiesRaw) && copiesRaw >= 1
       ? Math.min(copiesRaw, MAX_COPIES)
       : 1;
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: "file_too_large" }, { status: 400 });
-  }
 
-  const admin = createAdminClient();
-
-  // --- Event must exist (but may be OPEN or CLOSED — admin uploads either way) ---
+  // --- Event must exist (open OR closed — admin uploads either way) ---
   const { data: event } = await admin
     .from("events")
     .select("id")
@@ -95,18 +119,44 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
 
-  const rawBytes = Buffer.from(await file.arrayBuffer());
+  // --- Resolve the source photo bytes + the path we'll record as the raw. ---
+  // For a by-reference commit, the original is already stored; we reuse its path
+  // as raw_storage_path (no duplicate upload). For a by-file commit, we upload.
+  let rawBytes: Buffer;
+  let rawStoragePath: string;
+  let rawFormat: string | undefined;
   const uploaded: string[] = [];
 
+  if (originalId) {
+    const { data: original } = await admin
+      .from("original_photos")
+      .select("event_id, storage_path")
+      .eq("id", originalId)
+      .maybeSingle();
+    if (!original || original.event_id !== event.id) {
+      // Its upload may not have landed yet — let the client retry this one.
+      return NextResponse.json({ error: "original_not_ready" }, { status: 409 });
+    }
+    const { data: origBlob, error: origErr } = await admin.storage
+      .from("submissions")
+      .download(original.storage_path);
+    if (origErr || !origBlob) {
+      return NextResponse.json({ error: "original_not_ready" }, { status: 409 });
+    }
+    rawBytes = Buffer.from(await origBlob.arrayBuffer());
+    rawStoragePath = original.storage_path; // reuse — don't duplicate storage
+  } else {
+    rawBytes = Buffer.from(await (file as File).arrayBuffer());
+  }
+
   try {
-    // Validate the photo is a real image + get its format for the raw upload.
-    let photoFormat: string | undefined;
+    // Validate the photo is a real image.
     try {
-      photoFormat = (await sharp(rawBytes).metadata()).format;
+      rawFormat = (await sharp(rawBytes).metadata()).format;
     } catch {
       return NextResponse.json({ error: "invalid_type" }, { status: 400 });
     }
-    if (!photoFormat) {
+    if (!rawFormat) {
       return NextResponse.json({ error: "invalid_type" }, { status: 400 });
     }
 
@@ -119,7 +169,7 @@ export async function POST(request: Request, { params }: Params) {
     }
     const frameBytes = Buffer.from(await frameBlob.arrayBuffer());
 
-    // The frame's opening (if detected) — place the whole photo inside it.
+    // The frame's opening (if detected) — cover-crop the photo into it.
     const window =
       frame.window_x != null &&
       frame.window_y != null &&
@@ -141,17 +191,23 @@ export async function POST(request: Request, { params }: Params) {
       { window },
     );
 
-    // Upload raw original + finished image (same path scheme as guest submits).
     const rowId = randomUUID();
-    const raw = rawMeta(photoFormat);
-    const rawPath = `${event.id}/${rowId}-raw.${raw.ext}`;
     const finishedPath = `${event.id}/${rowId}-finished.jpg`;
 
-    const { error: rawErr } = await admin.storage
-      .from("submissions")
-      .upload(rawPath, rawBytes, { contentType: raw.type, upsert: false });
-    if (rawErr) throw new Error("raw_upload");
-    uploaded.push(rawPath);
+    // Only upload a raw copy for the by-file path; by-reference reuses the
+    // original's stored path.
+    if (!originalId) {
+      const raw = rawMeta(rawFormat);
+      rawStoragePath = `${event.id}/${rowId}-raw.${raw.ext}`;
+      const { error: rawErr } = await admin.storage
+        .from("submissions")
+        .upload(rawStoragePath, rawBytes, {
+          contentType: raw.type,
+          upsert: false,
+        });
+      if (rawErr) throw new Error("raw_upload");
+      uploaded.push(rawStoragePath);
+    }
 
     const { error: finErr } = await admin.storage
       .from("submissions")
@@ -168,7 +224,7 @@ export async function POST(request: Request, { params }: Params) {
       event_id: event.id,
       frame_id: frameId,
       device_id: ADMIN_DEVICE_ID,
-      raw_storage_path: rawPath,
+      raw_storage_path: rawStoragePath!,
       finished_storage_path: finishedPath,
       orientation,
     };

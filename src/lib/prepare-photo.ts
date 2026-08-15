@@ -13,7 +13,6 @@ import type { Orientation } from "@/lib/types";
 
 const MAX_EDGE = 2000;
 const QUALITY = 0.88;
-
 // Decode the file with EXIF orientation applied so the pixels are upright.
 async function loadUpright(file: File): Promise<{
   source: CanvasImageSource;
@@ -48,14 +47,15 @@ async function loadUpright(file: File): Promise<{
 
 export async function preparePhoto(
   file: File,
+  maxEdge: number = MAX_EDGE,
 ): Promise<{ file: File; orientation: Orientation }> {
   try {
     const { source, width, height, cleanup } = await loadUpright(file);
     const orientation: Orientation =
       width < height ? "portrait" : "landscape";
 
-    // Scale so the longest edge <= MAX_EDGE (never enlarge small photos).
-    const scale = Math.min(1, MAX_EDGE / Math.max(width, height));
+    // Scale so the longest edge <= maxEdge (never enlarge small photos).
+    const scale = Math.min(1, maxEdge / Math.max(width, height));
     const w = Math.max(1, Math.round(width * scale));
     const h = Math.max(1, Math.round(height * scale));
 

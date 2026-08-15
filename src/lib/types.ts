@@ -12,6 +12,9 @@ export interface EventRecord {
   public_slug: string;
   album_token: string;
   created_at: string;
+  // When the admin-uploaded "originals album" finished publishing; also the
+  // 30-day expiry clock. null = no active originals album.
+  originals_published_at: string | null;
 }
 
 export type Orientation = "portrait" | "landscape";
@@ -111,6 +114,15 @@ export interface GroupedSubmission {
 export interface NewCounts {
   newIndividual: number; // finished rows not yet downloaded individually
   newSheets: number; // finished rows not yet downloaded as print sheets
+}
+
+/** One row of the `original_photos` table (admin-uploaded, unframed originals). */
+export interface OriginalPhoto {
+  id: string;
+  event_id: string;
+  storage_path: string;
+  orientation: Orientation | null;
+  created_at: string;
 }
 
 /** A single photo as exposed in a public host album (only safe fields). */

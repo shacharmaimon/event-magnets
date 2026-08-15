@@ -4,41 +4,54 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import FramedPhoto from "@/components/guest/FramedPhoto";
 import { apiFetch } from "@/lib/api-client";
 import { preparePhoto } from "@/lib/prepare-photo";
-import { uploadOnePhoto } from "@/lib/admin-upload";
+import {
+  uploadOriginal,
+  publishOriginals,
+  commitMagnet,
+} from "@/lib/admin-upload";
 import { labels } from "@/lib/labels";
 import type { FrameWithUrl, GroupedFrames, Orientation } from "@/lib/types";
 
 const MAX_COPIES = 20;
-const UPLOAD_CONCURRENCY = 3;
+const ALBUM_MAX_EDGE = 3000; // originals album fidelity (see plan)
+const ALBUM_CONCURRENCY = 4;
+const COMMIT_CONCURRENCY = 3;
+const UPLOAD_RETRIES = 2;
 
 // One reviewed photo in the batch (client-side only until committed).
 type Item = {
   id: string;
-  file: File; // shrunk + upright (post-preparePhoto)
+  file: File; // shrunk + upright (post-preparePhoto, ~3000px)
   url: string; // object URL for preview
   orientation: Orientation;
   copies: number;
 };
 
-type Step = "idle" | "preparing" | "frames" | "review" | "uploading" | "done";
+// Per-photo album-upload state (background job, keyed by photo id).
+type AlbumEntry = { status: "pending" | "done" | "failed"; originalId?: string };
+
+type Step = "idle" | "preparing" | "frames" | "review" | "committing" | "done";
 
 let seq = 0;
 const nextId = () => `b${seq++}`;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Fill a template like "{done}/{total}".
 function tpl(s: string, vars: Record<string, string | number>) {
   return s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
 }
 
-// Admin bulk upload: drop many camera photos, auto-detect orientation, pick a
-// frame per orientation, review (set copies / delete), then commit. Committed
-// photos are composited server-side exactly like guest submissions.
+// Admin bulk upload — ONE drop does BOTH jobs:
+// 1. Every photo uploads once (unframed, ~3000px) to the host originals album,
+//    in the background, with progress + auto-retry; published when all land.
+// 2. In parallel, the review flow (delete / copies / frame) runs on instant
+//    local previews; committing a magnet references the already-uploaded
+//    original (no second upload) and composites it server-side.
 export default function BulkUpload({
   eventId,
   onCommitted,
 }: {
   eventId: string;
-  onCommitted: () => void; // refresh the gallery after upload
+  onCommitted: () => void; // refresh the gallery after commit
 }) {
   const [step, setStep] = useState<Step>("idle");
   const [items, setItems] = useState<Item[]>([]);
@@ -49,9 +62,17 @@ export default function BulkUpload({
     portrait: string | null;
   }>({ landscape: null, portrait: null });
   const [progress, setProgress] = useState({ done: 0, total: 0 });
-  const [result, setResult] = useState({ uploaded: 0, skipped: 0 });
+  const [result, setResult] = useState({ committed: 0, failed: 0 });
   const [error, setError] = useState("");
   const [enlarge, setEnlarge] = useState<number | null>(null);
+
+  // Background album-upload state.
+  const albumRef = useRef<Map<string, AlbumEntry>>(new Map());
+  const [albumDone, setAlbumDone] = useState(0);
+  const [albumTotal, setAlbumTotal] = useState(0);
+  const [albumFailed, setAlbumFailed] = useState(0);
+  const [albumPublished, setAlbumPublished] = useState(false);
+  const albumStarted = useRef(false);
 
   // Track object URLs so we can revoke them on reset/unmount (avoid leaks).
   const urls = useRef<Set<string>>(new Set());
@@ -63,18 +84,92 @@ export default function BulkUpload({
 
   function reset() {
     revokeAll();
+    albumRef.current = new Map();
+    albumStarted.current = false;
     setItems([]);
     setFrames(null);
     setPick({ landscape: null, portrait: null });
     setPrep({ done: 0, total: 0 });
     setProgress({ done: 0, total: 0 });
-    setResult({ uploaded: 0, skipped: 0 });
+    setResult({ committed: 0, failed: 0 });
+    setAlbumDone(0);
+    setAlbumTotal(0);
+    setAlbumFailed(0);
+    setAlbumPublished(false);
     setError("");
     setEnlarge(null);
     setStep("idle");
   }
 
-  // --- Step 1→2: files chosen → prepare (shrink + detect orientation) ---
+  // --- Background album upload over a FIXED snapshot of all photos. Runs
+  // independently of which review step the admin is on. Deleting a photo from
+  // the magnet review does NOT remove it here — the album is every shot. ---
+  async function startAlbumUpload(photos: Item[]) {
+    if (albumStarted.current) return;
+    albumStarted.current = true;
+    albumRef.current = new Map(
+      photos.map((p) => [p.id, { status: "pending" } as AlbumEntry]),
+    );
+    setAlbumTotal(photos.length);
+    setAlbumDone(0);
+    await runAlbumUploads(photos);
+  }
+
+  async function runAlbumUploads(photos: Item[]) {
+    let cursor = 0;
+    async function worker() {
+      while (cursor < photos.length) {
+        const p = photos[cursor++];
+        let ok = false;
+        for (let attempt = 0; attempt <= UPLOAD_RETRIES && !ok; attempt++) {
+          try {
+            const r = await uploadOriginal({
+              eventId,
+              file: p.file,
+              orientation: p.orientation,
+            });
+            if (r.ok && r.id) {
+              albumRef.current.set(p.id, { status: "done", originalId: r.id });
+              ok = true;
+            }
+          } catch {
+            /* retry */
+          }
+          if (!ok && attempt < UPLOAD_RETRIES) await sleep(1000);
+        }
+        if (!ok) albumRef.current.set(p.id, { status: "failed" });
+        setAlbumDone((d) => d + 1);
+      }
+    }
+    await Promise.all(
+      Array.from({ length: Math.min(ALBUM_CONCURRENCY, photos.length) }, worker),
+    );
+
+    const failed = [...albumRef.current.values()].filter(
+      (v) => v.status === "failed",
+    ).length;
+    setAlbumFailed(failed);
+    // Publish only when the WHOLE album landed (host sees the complete set).
+    if (failed === 0) {
+      await publishOriginals(eventId);
+      setAlbumPublished(true);
+    }
+  }
+
+  // Retry just the photos whose album upload failed.
+  async function retryAlbumFailures() {
+    const failedPhotos = items.filter(
+      (i) => albumRef.current.get(i.id)?.status === "failed",
+    );
+    if (failedPhotos.length === 0) return;
+    for (const p of failedPhotos)
+      albumRef.current.set(p.id, { status: "pending" });
+    setAlbumFailed(0);
+    setAlbumDone((d) => d - failedPhotos.length);
+    await runAlbumUploads(failedPhotos);
+  }
+
+  // --- Files chosen → prepare (shrink to 3000px + detect orientation) ---
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
     const files = Array.from(fileList);
@@ -85,7 +180,7 @@ export default function BulkUpload({
     const prepared: Item[] = [];
     for (let i = 0; i < files.length; i++) {
       try {
-        const { file, orientation } = await preparePhoto(files[i]);
+        const { file, orientation } = await preparePhoto(files[i], ALBUM_MAX_EDGE);
         const url = URL.createObjectURL(file);
         urls.current.add(url);
         prepared.push({ id: nextId(), file, url, orientation, copies: 1 });
@@ -102,11 +197,12 @@ export default function BulkUpload({
     }
     setItems(prepared);
 
+    // Kick off the background album upload immediately (fire-and-forget).
+    void startAlbumUpload(prepared);
+
     // Load this event's frames and auto-pick when there's only one per side.
     try {
-      const gf = await apiFetch<GroupedFrames>(
-        `/api/events/${eventId}/frames`,
-      );
+      const gf = await apiFetch<GroupedFrames>(`/api/events/${eventId}/frames`);
       setFrames(gf);
       setPick({
         landscape: gf.landscape[0]?.id ?? null,
@@ -115,11 +211,10 @@ export default function BulkUpload({
       setStep("frames");
     } catch {
       setError(labels.adminSubmissions.loadError);
-      setStep("idle");
+      setStep("frames"); // album upload still runs; frames can be retried
     }
   }
 
-  // Frame chosen for an orientation (by id) — resolved to the full record.
   function frameFor(orientation: Orientation): FrameWithUrl | null {
     if (!frames) return null;
     const id = pick[orientation];
@@ -127,10 +222,9 @@ export default function BulkUpload({
     return list.find((f) => f.id === id) ?? null;
   }
 
-  // Counts to drive warnings + summary.
   const hasLandscape = items.some((i) => i.orientation === "landscape");
   const hasPortrait = items.some((i) => i.orientation === "portrait");
-  const kept = items.filter((i) => frameFor(i.orientation)); // will upload
+  const kept = items.filter((i) => frameFor(i.orientation));
   const skippedForNoFrame = items.length - kept.length;
   const totalMagnets = kept.reduce((n, i) => n + i.copies, 0);
 
@@ -144,29 +238,33 @@ export default function BulkUpload({
     );
   }
   function removeItem(id: string) {
-    setItems((prev) => {
-      const it = prev.find((i) => i.id === id);
-      if (it) {
-        URL.revokeObjectURL(it.url);
-        urls.current.delete(it.url);
-      }
-      return prev.filter((i) => i.id !== id);
-    });
+    // Only removes from the MAGNET review — the photo stays in the album.
+    setItems((prev) => prev.filter((i) => i.id !== id));
   }
 
-  // --- Commit: upload kept photos with a small concurrency pool ---
+  // Wait for a photo's album upload to finish so we can reference its original.
+  async function waitForOriginal(id: string): Promise<string | null> {
+    for (let i = 0; i < 40; i++) {
+      const entry = albumRef.current.get(id);
+      if (entry?.status === "done" && entry.originalId) return entry.originalId;
+      if (entry?.status === "failed") return null;
+      await sleep(1000);
+    }
+    return null;
+  }
+
+  // --- Commit magnets BY REFERENCE to the uploaded originals (no re-upload) ---
   async function commit() {
     const queue = items.filter((i) => frameFor(i.orientation));
-    const skippedNow = items.length - queue.length;
     if (queue.length === 0) {
-      setResult({ uploaded: 0, skipped: skippedNow });
+      setResult({ committed: 0, failed: 0 });
       setStep("done");
       return;
     }
 
-    setStep("uploading");
+    setStep("committing");
     setProgress({ done: 0, total: queue.length });
-    let uploaded = 0;
+    let committed = 0;
     let failed = 0;
     let cursor = 0;
 
@@ -174,30 +272,38 @@ export default function BulkUpload({
       while (cursor < queue.length) {
         const it = queue[cursor++];
         const frame = frameFor(it.orientation)!;
-        try {
-          const r = await uploadOnePhoto({
+        const originalId = await waitForOriginal(it.id);
+        if (!originalId) {
+          failed++;
+          setProgress((p) => ({ ...p, done: p.done + 1 }));
+          continue;
+        }
+        let ok = false;
+        for (let attempt = 0; attempt <= UPLOAD_RETRIES && !ok; attempt++) {
+          const r = await commitMagnet({
             eventId,
-            file: it.file,
+            originalId,
             frameId: frame.id,
             orientation: it.orientation,
             copies: it.copies,
           });
-          if (r.ok) uploaded++;
-          else failed++;
-        } catch {
-          failed++;
+          if (r.ok) ok = true;
+          else if (r.error === "original_not_ready") await sleep(1500);
+          else break;
         }
+        if (ok) committed++;
+        else failed++;
         setProgress((p) => ({ ...p, done: p.done + 1 }));
       }
     }
 
     await Promise.all(
-      Array.from({ length: Math.min(UPLOAD_CONCURRENCY, queue.length) }, worker),
+      Array.from({ length: Math.min(COMMIT_CONCURRENCY, queue.length) }, worker),
     );
 
-    setResult({ uploaded, skipped: skippedNow + failed });
+    setResult({ committed, failed });
     setStep("done");
-    onCommitted(); // refresh the gallery grid
+    onCommitted();
   }
 
   // Keyboard shortcuts while a photo is enlarged.
@@ -209,7 +315,6 @@ export default function BulkUpload({
       if (!it) return;
       if (e.key === "Escape") setEnlarge(null);
       else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-        // RTL: ArrowLeft = next, ArrowRight = prev (feels natural in Hebrew UI).
         const delta = e.key === "ArrowLeft" ? 1 : -1;
         setEnlarge((idx) =>
           idx === null ? idx : (idx + delta + items.length) % items.length,
@@ -230,7 +335,48 @@ export default function BulkUpload({
 
   // ---------------------------------------------------------------- rendering
 
-  // Collapsed entry button.
+  const panel =
+    "rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900";
+
+  // Small always-visible album-upload status (shown from frames step onward).
+  function albumStatus() {
+    if (albumTotal === 0) return null;
+    const complete = albumDone >= albumTotal;
+    return (
+      <div className="flex flex-col gap-1 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-800 dark:bg-sky-950/30 dark:text-sky-300">
+        <div className="flex items-center justify-between gap-2">
+          <span>
+            {complete && albumPublished
+              ? labels.bulkUpload.albumPublished
+              : complete && albumFailed > 0
+                ? tpl(labels.bulkUpload.albumFailedTemplate, { n: albumFailed })
+                : tpl(labels.bulkUpload.albumProgressTemplate, {
+                    done: albumDone,
+                    total: albumTotal,
+                  })}
+          </span>
+          {complete && albumFailed > 0 && (
+            <button
+              onClick={retryAlbumFailures}
+              className="font-medium text-sky-700 underline dark:text-sky-300"
+            >
+              {labels.bulkUpload.retryFailed}
+            </button>
+          )}
+        </div>
+        {!complete && (
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-sky-200 dark:bg-sky-900">
+            <div
+              className="h-full bg-sky-500 transition-all"
+              style={{ width: `${Math.round((albumDone / albumTotal) * 100)}%` }}
+            />
+          </div>
+        )}
+        <span className="text-xs opacity-70">{labels.bulkUpload.keepTabOpen}</span>
+      </div>
+    );
+  }
+
   if (step === "idle") {
     return (
       <section className="rounded-xl border border-dashed border-zinc-300 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
@@ -257,9 +403,6 @@ export default function BulkUpload({
     );
   }
 
-  const panel =
-    "rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900";
-
   if (step === "preparing") {
     return (
       <section className={panel}>
@@ -276,6 +419,7 @@ export default function BulkUpload({
       (frames?.portrait.length ?? 0) === 0;
     return (
       <section className={`${panel} flex flex-col gap-4`}>
+        {albumStatus()}
         <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
           {labels.bulkUpload.chooseFramesTitle}
         </h3>
@@ -319,25 +463,20 @@ export default function BulkUpload({
           >
             {labels.bulkUpload.continueToReview}
           </button>
-          <button
-            onClick={reset}
-            className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-          >
-            {labels.bulkUpload.cancel}
-          </button>
         </div>
       </section>
     );
   }
 
-  if (step === "uploading") {
+  if (step === "committing") {
     const pct = progress.total
       ? Math.round((progress.done / progress.total) * 100)
       : 0;
     return (
       <section className={`${panel} flex flex-col gap-3`}>
+        {albumStatus()}
         <p className="text-center text-sm font-medium text-zinc-600 dark:text-zinc-300">
-          {tpl(labels.bulkUpload.uploadingTemplate, progress)}
+          {tpl(labels.bulkUpload.committingTemplate, progress)}
         </p>
         <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
           <div
@@ -352,18 +491,17 @@ export default function BulkUpload({
   if (step === "done") {
     return (
       <section className={`${panel} flex flex-col items-center gap-3 text-center`}>
+        {albumStatus()}
         <span className="text-3xl">✅</span>
         <p className="font-semibold text-zinc-900 dark:text-white">
-          {tpl(labels.bulkUpload.doneSummaryTemplate, result)}
+          {tpl(labels.bulkUpload.doneMagnetsTemplate, result)}
         </p>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={reset}
-            className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
-          >
-            {labels.bulkUpload.startOver}
-          </button>
-        </div>
+        <button
+          onClick={reset}
+          className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
+        >
+          {labels.bulkUpload.startOver}
+        </button>
       </section>
     );
   }
@@ -371,6 +509,7 @@ export default function BulkUpload({
   // step === "review"
   return (
     <section className={`${panel} flex flex-col gap-4`}>
+      {albumStatus()}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
           {labels.bulkUpload.reviewTitle}
@@ -385,9 +524,8 @@ export default function BulkUpload({
 
       {skippedForNoFrame > 0 && (
         <p className="text-sm text-amber-600 dark:text-amber-400">
-          {tpl(labels.bulkUpload.doneSummaryTemplate, {
-            uploaded: kept.length,
-            skipped: skippedForNoFrame,
+          {tpl(labels.bulkUpload.skippedNoFrameTemplate, {
+            n: skippedForNoFrame,
           })}
         </p>
       )}
@@ -430,7 +568,6 @@ export default function BulkUpload({
               </button>
 
               <div className="flex items-center justify-between gap-1">
-                {/* copies stepper */}
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => setCopies(it.id, it.copies - 1)}
@@ -469,13 +606,7 @@ export default function BulkUpload({
           disabled={kept.length === 0}
           className="rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
         >
-          {labels.bulkUpload.uploadButton} ({kept.length})
-        </button>
-        <button
-          onClick={reset}
-          className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-        >
-          {labels.bulkUpload.cancel}
+          {labels.bulkUpload.commitButton} ({kept.length})
         </button>
       </div>
 
@@ -545,9 +676,7 @@ export default function BulkUpload({
   );
 }
 
-// A single-orientation frame chooser (thumbnails). Hidden when only one frame
-// exists (auto-selected upstream) — but we still render it so the admin sees
-// which frame is applied; a lone frame is just pre-selected.
+// A single-orientation frame chooser (thumbnails).
 function FrameRow({
   heading,
   list,
