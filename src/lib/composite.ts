@@ -145,7 +145,7 @@ export async function compositeMagnet(
 
  // Window rect in pixels, expanded slightly underneath the frame.
 // This prevents tiny white seams from anti-aliased frame edges.
-const BLEED = 3;
+const BLEED = 7;
 
 const openX = Math.max(0, Math.round(win.x * W));
 const openY = Math.max(0, Math.round(win.y * H));
