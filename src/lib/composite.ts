@@ -143,17 +143,26 @@ export async function compositeMagnet(
       .toBuffer();
   }
 
-  // Window rect in pixels (clamped to the canvas).
-  const wx = Math.max(0, Math.round(win.x * W));
-  const wy = Math.max(0, Math.round(win.y * H));
-  const ww = Math.min(W - wx, Math.round(win.w * W));
-  const wh = Math.min(H - wy, Math.round(win.h * H));
+ // Window rect in pixels, expanded slightly underneath the frame.
+// This prevents tiny white seams from anti-aliased frame edges.
+const BLEED = 3;
 
-  // Cover-crop the photo to fill the opening exactly (crop once, into the
-  // window). No bars, no blur — the frame border trims whatever doesn't fit.
-  const windowContent = await sharp(photo)
-    .resize(ww, wh, { fit: "cover", position: "center" })
-    .toBuffer();
+const openX = Math.max(0, Math.round(win.x * W));
+const openY = Math.max(0, Math.round(win.y * H));
+const openW = Math.min(W - openX, Math.round(win.w * W));
+const openH = Math.min(H - openY, Math.round(win.h * H));
+
+const wx = Math.max(0, openX - BLEED);
+const wy = Math.max(0, openY - BLEED);
+const right = Math.min(W, openX + openW + BLEED);
+const bottom = Math.min(H, openY + openH + BLEED);
+
+const ww = right - wx;
+const wh = bottom - wy;
+
+const windowContent = await sharp(photo)
+  .resize(ww, wh, { fit: "cover", position: "center" })
+  .toBuffer();
 
   // Base → place the photo at the opening → frame on top → flatten on white
   // (in case any frame area is semi-transparent) → JPEG.
